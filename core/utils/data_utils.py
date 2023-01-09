@@ -1,4 +1,9 @@
-from collections import Sequence, defaultdict, deque
+import sys
+if sys.version_info[1] > 8:
+    from collections.abc import Sequence
+else:
+    from collections import Sequence
+from collections import defaultdict, deque
 import cv2
 import mmcv
 import numpy as np

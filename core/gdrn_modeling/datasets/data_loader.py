@@ -889,6 +889,8 @@ def build_gdrn_train_loader(cfg, dataset_names):
         sampler = RepeatFactorTrainingSampler(repeat_factors)
     else:
         raise ValueError("Unknown training sampler: {}".format(sampler_name))
+
+    logger.info("Returned from dataloader")
     return my_build_batch_data_loader(
         dataset,
         sampler,

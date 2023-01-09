@@ -140,7 +140,7 @@ class YOLOX_DefaultTrainer(TrainerBase):
         logger.info("total iters: {}".format(max_iter))
 
         cfg.train.eval_period = cfg.train.eval_period * cfg.train.iters_per_epoch
-        cfg.train.checkpointer.period = cfg.train.checkpointer.period * cfg.train.iters_per_epoch
+        cfg.train.checkpointer.period = cfg.train.checkpointer.period * cfg.train.iters_per_epoch * 5
 
         OmegaConf.set_readonly(cfg, True)  # freeze config
         self.cfg = cfg

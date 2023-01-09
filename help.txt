@@ -1,0 +1,3 @@
+yolox/gdrn to resume training: add flag --resume in relevant train.sh file.
+
+- load_state_dict_from_hf error: reinstall timm

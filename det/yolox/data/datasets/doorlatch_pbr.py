@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 DATASETS_ROOT = osp.normpath(osp.join(PROJ_ROOT, "datasets"))
 
 
-class TLESS_PBR_Dataset:
+class DOORLATCH_PBR_Dataset:
     def __init__(self, data_cfg):
         """
         Set with_depth and with_masks default to True,
@@ -39,10 +39,10 @@ class TLESS_PBR_Dataset:
 
         self.objs = data_cfg["objs"]  # selected objs
 
-        self.dataset_root = data_cfg.get("dataset_root", osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/train_pbr"))
+        self.dataset_root = data_cfg.get("dataset_root", osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/train_pbr"))
         assert osp.exists(self.dataset_root), self.dataset_root
         self.xyz_root = data_cfg.get("xyz_root", osp.join(self.dataset_root, "xyz_crop"))
-        self.models_root = data_cfg["models_root"]  # BOP_DATASETS/tless/models_cad
+        self.models_root = data_cfg["models_root"]  # BOP_DATASETS/doorlatch/models_cad
         self.scale_to_meter = data_cfg["scale_to_meter"]  # 0.001
 
         self.with_masks = data_cfg["with_masks"]
@@ -54,17 +54,34 @@ class TLESS_PBR_Dataset:
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
         self.use_cache = data_cfg.get("use_cache", True)
+        self.use_cache = True
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
 
         # NOTE: careful! Only the selected objects
-        self.cat_ids = [cat_id for cat_id, obj_name in ref.tless.id2obj.items() if obj_name in self.objs]
+        self.cat_ids = [cat_id for cat_id, obj_name in ref.doorlatch.id2obj.items() if obj_name in self.objs]
         # map selected objs to [0, num_objs)
         self.cat2label = {v: i for i, v in enumerate(self.cat_ids)}  # id_map
         self.label2cat = {label: cat for cat, label in self.cat2label.items()}
         self.obj2label = OrderedDict((obj, obj_id) for obj_id, obj in enumerate(self.objs))
-        self.num_scenes = 10
+        # self.num_scenes = 51
+        self.num_scenes = 51
 
-        self.scenes = [f"{i:06d}" for i in range(self.num_scenes)]
+        # Scene 0 has only 824 images, it is omitted
+        self.scenes = [f"{i:06d}" for i in range(1, self.num_scenes)]
+        # self.scenes = ["000000"]
+
+    def _enum(self, name):
+        if name == "SB":
+            return 1
+        elif name == "MB":
+            return 2
+        elif name == "LB":
+            return 3
+        elif name == "BSC":
+            return 4
+        elif name == "SP":
+            return 5
+
 
     def __call__(self):
         """Load light-weight instance annotations of all images into a list of
@@ -139,7 +156,13 @@ class TLESS_PBR_Dataset:
                 insts = []
                 for anno_i, anno in enumerate(gt_dict[str_im_id]):
                     obj_id = anno["obj_id"]
+
+                    # Takes care of SB, MB, LB, ... in annotations
+                    if self.name == "doorlatch_pbr_train":
+                        obj_id = self._enum(obj_id)
+
                     if obj_id not in self.cat_ids:
+                        # print(f"continue: id {obj_id} not in cat_ids {self.cat_ids}")
                         continue
                     cur_label = self.cat2label[obj_id]  # 0-based label
                     R = np.array(anno["cam_R_m2c"], dtype="float32").reshape(3, 3)
@@ -156,6 +179,7 @@ class TLESS_PBR_Dataset:
                     if self.filter_invalid:
                         if h <= 1 or w <= 1:
                             self.num_instances_without_valid_box += 1
+                            # print("continue: filter invalid")
                             continue
 
                     mask_file = osp.join(scene_root, "mask/{:06d}_{:06d}.png".format(int_im_id, anno_i))
@@ -168,8 +192,9 @@ class TLESS_PBR_Dataset:
                     # load mask visib  TODO: load both mask_visib and mask_full
                     mask_single = mmcv.imread(mask_visib_file, "unchanged")
                     area = mask_single.sum()
-                    if area < 30:  # filter out too small or nearly invisible instances
+                    if area < 20:  # filter out too small or nearly invisible instances
                         self.num_instances_without_valid_segmentation += 1
+                        # print("continue: area too small: ", area)
                         continue
                     visib_fract = gt_info_dict[str_im_id][anno_i].get("visib_fract", 1.0)
                     mask_rle = binary_mask_to_rle(mask_single, compressed=True)
@@ -199,6 +224,7 @@ class TLESS_PBR_Dataset:
                         inst[key] = self.models[cur_label][key]
                     insts.append(inst)
                 if len(insts) == 0:  # filter im without anno
+                    print("continue: len(insts) = 0")
                     continue
                 record["annotations"] = insts
                 dataset_dicts.append(record)
@@ -244,7 +270,7 @@ class TLESS_PBR_Dataset:
         models = []
         for obj_name in self.objs:
             model = inout.load_ply(
-                osp.join(self.models_root, f"obj_{ref.tless.obj2id[obj_name]:06d}.ply"),
+                osp.join(self.models_root, f"obj_{ref.doorlatch.obj2id[obj_name]:06d}.ply"),
                 vertex_scale=self.scale_to_meter,
             )
             # NOTE: the bbox3d_and_center is not obtained from centered vertices
@@ -265,7 +291,7 @@ class TLESS_PBR_Dataset:
 ########### register datasets ############################################################
 
 
-def get_tless_metadata(obj_names, ref_key):
+def get_doorlatch_metadata(obj_names, ref_key):
     """task specific metadata."""
 
     data_ref = ref.__dict__[ref_key]
@@ -287,17 +313,17 @@ def get_tless_metadata(obj_names, ref_key):
     return meta
 
 
-tless_model_root = "BOP_DATASETS/tless/models_cad/"
+doorlatch_model_root = "BOP_DATASETS/doorlatch/models_cad/"
 ################################################################################
 
 
-SPLITS_TLESS_PBR = dict(
-    tless_pbr_train=dict(
-        name="tless_pbr_train",
-        objs=ref.tless.objects,  # selected objects
-        dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/train_pbr"),
-        models_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/models_cad"),
-        xyz_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/train_pbr/xyz_crop"),
+SPLITS_DOORLATCH_PBR = dict(
+    doorlatch_pbr_train=dict(
+        name="doorlatch_pbr_train",
+        objs=ref.doorlatch.objects,  # selected objects
+        dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/train_pbr"),
+        models_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/models_cad"),
+        xyz_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/train_pbr/xyz_crop"),
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
@@ -306,27 +332,27 @@ SPLITS_TLESS_PBR = dict(
         use_cache=True,
         num_to_load=-1,
         filter_invalid=False,
-        ref_key="tless",
+        ref_key="doorlatch",
     ),
 )
 
 # single obj splits
-for obj in ref.tless.objects:
+for obj in ref.doorlatch.objects:
     for split in ["train"]:
-        name = "tless_pbr_{}_{}".format(obj, split)
+        name = "doorlatch_pbr_{}_{}".format(obj, split)
         if split in ["train"]:
             filter_invalid = True
         elif split in ["test"]:
             filter_invalid = False
         else:
             raise ValueError("{}".format(split))
-        if name not in SPLITS_TLESS_PBR:
-            SPLITS_TLESS_PBR[name] = dict(
+        if name not in SPLITS_DOORLATCH_PBR:
+            SPLITS_DOORLATCH_PBR[name] = dict(
                 name=name,
                 objs=[obj],  # only this obj
-                dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/train_pbr"),
-                models_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/models_cad"),
-                xyz_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/tless/train_pbr/xyz_crop"),
+                dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/train_pbr"),
+                models_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/models_cad"),
+                xyz_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/train_pbr/xyz_crop"),
                 scale_to_meter=0.001,
                 with_masks=True,  # (load masks but may not use it)
                 with_depth=True,  # (load depth path here, but may not use it)
@@ -335,7 +361,7 @@ for obj in ref.tless.objects:
                 use_cache=True,
                 num_to_load=-1,
                 filter_invalid=filter_invalid,
-                ref_key="tless",
+                ref_key="doorlatch",
             )
 
 
@@ -349,25 +375,25 @@ def register_with_name_cfg(name, data_cfg=None):
             data_cfg can be set in cfg.DATA_CFG.name
     """
     dprint("register dataset: {}".format(name))
-    if name in SPLITS_TLESS_PBR:
-        used_cfg = SPLITS_TLESS_PBR[name]
+    if name in SPLITS_DOORLATCH_PBR:
+        used_cfg = SPLITS_DOORLATCH_PBR[name]
     else:
         assert data_cfg is not None, f"dataset name {name} is not registered"
         used_cfg = data_cfg
-    DatasetCatalog.register(name, TLESS_PBR_Dataset(used_cfg))
+    DatasetCatalog.register(name, DOORLATCH_PBR_Dataset(used_cfg))
     # something like eval_types
     MetadataCatalog.get(name).set(
-        id="tless",  # NOTE: for pvnet to determine module
+        id="doorlatch",  # NOTE: for pvnet to determine module
         ref_key=used_cfg["ref_key"],
         objs=used_cfg["objs"],
         eval_error_types=["ad", "rete", "proj"],
         evaluator_type="bop",
-        **get_tless_metadata(obj_names=used_cfg["objs"], ref_key=used_cfg["ref_key"]),
+        **get_doorlatch_metadata(obj_names=used_cfg["objs"], ref_key=used_cfg["ref_key"]),
     )
 
 
 def get_available_datasets():
-    return list(SPLITS_TLESS_PBR.keys())
+    return list(SPLITS_DOORLATCH_PBR.keys())
 
 
 #### tests ###############################################

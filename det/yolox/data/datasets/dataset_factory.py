@@ -22,6 +22,8 @@ from . import (
     itodd_pbr,
     itodd_d2,
     itodd_bop_test,
+    doorlatch_pbr,
+    doorlatch_bop_test,
 )  # noqa
 
 cur_dir = osp.dirname(osp.abspath(__file__))
@@ -53,6 +55,8 @@ _DSET_MOD_NAMES = [
     "itodd_pbr",
     "itodd_d2",
     "itodd_bop_test",
+    "doorlatch_pbr",
+    "doorlatch_bop_test",
 ]
 
 logger = logging.getLogger(__name__)
@@ -90,6 +94,7 @@ def register_datasets_in_cfg(cfg):
             # NOTE: it is better to let all datasets pre-refined
             for _mod_name in _DSET_MOD_NAMES:
                 if name in get_available_datasets(_mod_name):
+                    print(name, _mod_name)
                     register_dataset(_mod_name, name, data_cfg=None)
                     registered = True
                     break

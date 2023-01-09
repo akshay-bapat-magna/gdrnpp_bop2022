@@ -62,6 +62,7 @@ class GDRN_Lite(LightningLite):
             output_folder = osp.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
+
         if evaluator_type in ["sem_seg", "coco_panoptic_seg"]:
             evaluator_list.append(
                 SemSegEvaluator(
@@ -174,7 +175,8 @@ class GDRN_Lite(LightningLite):
         # load data ===================================
         train_dset_names = cfg.DATASETS.TRAIN
         data_loader = build_gdrn_train_loader(cfg, train_dset_names)
-
+        logger.info("Loaded dataset in data_loader")
+        # breakpoint()
         data_loader_iter = iter(data_loader)
 
         # load 2nd train dataloader if needed
@@ -187,6 +189,7 @@ class GDRN_Lite(LightningLite):
             data_loader_2 = None
             data_loader_2_iter = None
 
+        logger.info("ims_per_batch")
         images_per_batch = cfg.SOLVER.IMS_PER_BATCH
         if isinstance(data_loader, AspectRatioGroupedDataset):
             dataset_len = len(data_loader.dataset.dataset)

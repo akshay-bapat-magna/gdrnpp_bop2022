@@ -166,9 +166,9 @@ def vis_image_bboxes_cv2(
     for i, bbox in enumerate(bboxes):
         bbox = bbox.astype(np.int32)
         x1, y1, x2, y2 = bbox[:4]
-        cv2.rectangle(img_show, (x1, y1), (x2, y2), box_color, thickness=box_thickness)
+        cv2.rectangle(img_show, (x1, y1), (x1+x2, y1+y2), box_color, thickness=box_thickness)
         if draw_center:
-            center = (int((x1 + x2) / 2), int((y1 + y2) / 2))
+            center = (int(x1 + x2 / 2), int(y1 + y2 / 2))
             img_show = cv2.circle(
                 img_show,
                 center,

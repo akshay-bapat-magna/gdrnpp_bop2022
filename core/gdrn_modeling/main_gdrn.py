@@ -207,6 +207,8 @@ def main(args):
 
 if __name__ == "__main__":
     import resource
+    # torch.backends.cudnn.enabled = True
+    # torch.backends.cudnn.benchmark = True
 
     # RuntimeError: received 0 items of ancdata. Issue: pytorch/pytorch#973
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
