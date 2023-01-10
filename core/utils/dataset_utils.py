@@ -109,7 +109,7 @@ def trivial_batch_collator(batch):
 
     https://github.com/pytorch/fairseq/issues/1171
     """
-    dataloader._use_shared_memory = False
+    dataloader._use_shared_memory = True
     return batch
 
 
@@ -443,8 +443,8 @@ def my_build_batch_data_loader(
     batch_size = total_batch_size // world_size
 
     # Horovod: limit # of CPU threads to be used per worker.
-    # if num_workers > 0:
-    #     torch.set_num_threads(num_workers)
+    if num_workers > 0:
+        torch.set_num_threads(num_workers)
 
     kwargs = {"num_workers": num_workers}
     # When supported, use 'forkserver' to spawn dataloader workers instead of 'fork' to prevent
