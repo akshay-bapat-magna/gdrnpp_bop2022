@@ -222,9 +222,13 @@ def get_split_params(datasets_path, dataset_name, split, split_type=None):
             p["azimuth_range"] = (0, 2 * math.pi)
             p["elev_range"] = (0, 0.5 * math.pi)
 
+    # DOORLATCH
     elif dataset_name == "doorlatch":
-        p["scene_ids"] = {"train": list(range(1, 50)), "test": [0]}
+        p["scene_ids"] = {"train": list(range(1, 50)), "test": [0]}[split]
         p["im_size"] = (640, 640)
+
+        if split_type is None:
+            split_type = "pbr"
 
     # T-LESS.
     elif dataset_name == "tless":
