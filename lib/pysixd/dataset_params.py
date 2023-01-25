@@ -91,6 +91,7 @@ def get_model_params(datasets_path, dataset_name, model_type=None):
         "ycbv": list(range(1, 22)),
         "ycbvposecnn": list(range(1, 22)),
         "hope": list(range(1, 29)),
+        "doorlatch": list(range(1, 6)),
     }[dataset_name]
 
     # ID's of objects with ambiguous views evaluated using the ADI pose error
@@ -129,6 +130,7 @@ def get_model_params(datasets_path, dataset_name, model_type=None):
         "ycbv": [1, 13, 14, 16, 18, 19, 20, 21],  # bop symmetric objs
         "ycbvposecnn": [13, 16, 19, 20, 21],  # posecnn symmetric objs
         "hope": None,  # Not defined yet.
+        "doorlatch": [1, 2]
     }[dataset_name]
 
     # T-LESS includes two types of object models, CAD and reconstructed.
@@ -219,6 +221,10 @@ def get_split_params(datasets_path, dataset_name, split, split_type=None):
             p["depth_range"] = (346.31, 1499.84)
             p["azimuth_range"] = (0, 2 * math.pi)
             p["elev_range"] = (0, 0.5 * math.pi)
+
+    elif dataset_name == "doorlatch":
+        p["scene_ids"] = {"train": list(range(1, 50)), "test": [0]}
+        p["im_size"] = (640, 640)
 
     # T-LESS.
     elif dataset_name == "tless":
