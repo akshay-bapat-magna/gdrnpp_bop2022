@@ -371,6 +371,7 @@ def load_and_print_val_scores_tab(
 
     if any(is_weighted_average_metric(err_type) for err_type in error_types):
         obj_nums_dict = get_object_nums_from_targets(osp.join(data_ref.dataset_root, cfg.VAL.TARGETS_FILENAME))
+
     else:
         obj_nums_dict = None
 

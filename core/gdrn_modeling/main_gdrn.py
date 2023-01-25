@@ -156,7 +156,7 @@ class Lite(GDRN_Lite):
 
         logger.info(f"Used GDRN module name: {cfg.MODEL.POSE_NET.NAME}")
         model, optimizer = eval(cfg.MODEL.POSE_NET.NAME).build_model_optimizer(cfg, is_test=args.eval_only)
-        logger.info("Model:\n{}".format(model))
+        # logger.info("Model:\n{}".format(model))
 
         # don't forget to call `setup` to prepare for model / optimizer for distributed training.
         # the model is moved automatically to the right device.

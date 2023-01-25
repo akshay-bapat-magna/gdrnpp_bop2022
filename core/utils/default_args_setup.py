@@ -125,14 +125,15 @@ def my_default_setup(cfg, args):
 
     logger.info("Command line arguments: " + str(args))
     if hasattr(args, "config_file") and args.config_file != "":
-        logger.info(
-            "Contents of args.config_file={}:\n{}".format(
-                args.config_file,
-                PathManager.open(args.config_file, "r").read(),
-            )
-        )
+        pass
+        # logger.info(
+        #     "Contents of args.config_file={}:\n{}".format(
+        #         args.config_file,
+        #         PathManager.open(args.config_file, "r").read(),
+        #     )
+        # )
 
-    logger.info("Running with full config:\n{}".format(cfg))
+    # logger.info("Running with full config:\n{}".format(cfg))
     if comm.is_main_process() and output_dir:
         # Note: some of our scripts may expect the existence of
         # config.yaml in output directory
