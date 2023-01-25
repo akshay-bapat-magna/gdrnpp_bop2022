@@ -53,12 +53,12 @@ DATASETS = dict(
     TEST=("doorlatch_bop_test_pbr",),
     # AP        AP50    AP75    AR      inf.time
     DET_FILES_TEST=("datasets/BOP_DATASETS/doorlatch/test/test_bboxes/yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json",),
-    DET_TOPK_PER_OBJ=1,
+    DET_TOPK_PER_OBJ=5,
 )
 
 DATALOADER = dict(
     # Number of data loading threads
-    NUM_WORKERS=1,
+    NUM_WORKERS=8,
     FILTER_VISIB_THR=0.3,
 )
 
@@ -113,7 +113,7 @@ MODEL = dict(
             # full mask loss ---------------------------
             FULL_MASK_LOSS_TYPE="L1",  # L1 | BCE | CE
             FULL_MASK_LW=1.0,
-            # region loss -------------------------
+            # regionn loss -------------------------
             REGION_LOSS_TYPE="CE",  # CE
             REGION_LOSS_MASK_GT="visib",  # trunc | visib | obj
             REGION_LW=1.0,
@@ -137,7 +137,7 @@ VAL = dict(
     SCRIPT_PATH="lib/pysixd/scripts/eval_pose_results_more.py",
     TARGETS_FILENAME="test_targets_bop19.json",
     ERROR_TYPES="mspd,mssd,vsd,ad,reS,teS",
-    RENDERER_TYPE="cpp",  # cpp, python, egl
+    RENDERER_TYPE="python",  # cpp, python, egl
     SPLIT="test",
     SPLIT_TYPE="",
     N_TOP=-1,  # SISO: 1, VIVO: -1 (for LINEMOD, 1/-1 are the same)
