@@ -8,7 +8,8 @@ filename = "scene_gt_info.json"
 datasetPath = "datasets/BOP_DATASETS/doorlatch/train_pbr/"
 now = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
 
-for scene in tqdm(range(num_scenes)):
+for scene in tqdm(range(1, 6)):
+# for scene in [50]:
 	json_path = f"{datasetPath}{scene:06d}/{filename}"
 	with open(json_path, 'r') as f:
 		data = json.load(f)
