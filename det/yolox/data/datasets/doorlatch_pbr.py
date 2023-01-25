@@ -54,7 +54,7 @@ class DOORLATCH_PBR_Dataset:
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
         self.use_cache = data_cfg.get("use_cache", True)
-        self.use_cache = True
+        self.use_cache = False
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
 
         # NOTE: careful! Only the selected objects
@@ -64,7 +64,7 @@ class DOORLATCH_PBR_Dataset:
         self.label2cat = {label: cat for cat, label in self.cat2label.items()}
         self.obj2label = OrderedDict((obj, obj_id) for obj_id, obj in enumerate(self.objs))
         # self.num_scenes = 51
-        self.num_scenes = 51
+        self.num_scenes = 6
 
         # Scene 0 has only 824 images, it is omitted
         self.scenes = [f"{i:06d}" for i in range(1, self.num_scenes)]
