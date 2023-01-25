@@ -23,6 +23,18 @@ from lib.pysixd import pose_error
 from lib.pysixd import renderer
 import setproctitle
 
+def _enum(name):
+    if name == "SB":
+        return 1
+    elif name == "MB":
+        return 2
+    elif name == "LB":
+        return 3
+    elif name == "BSC":
+        return 4
+    elif name == "SP":
+        return 5
+
 # PARAMETERS (can be overwritten by the command line arguments below).
 ################################################################################
 p = {
@@ -254,6 +266,8 @@ for result_filename in p["result_filenames"]:
 
     # Load the estimation targets.
     targets = inout.load_json(osp.join(dp_split["base_path"], p["targets_filename"]))
+    misc.log("Loaded targets from: ")
+    print(osp.join(dp_split["base_path"], p["targets_filename"]))
 
     # Organize the targets by scene, image and object.
     misc.log("Organizing estimation targets...")
@@ -276,9 +290,7 @@ for result_filename in p["result_filenames"]:
         # Load camera and GT poses for the current scene.
         scene_camera = inout.load_scene_camera(dp_split["scene_camera_tpath"].format(scene_id=scene_id))
         scene_gt = inout.load_scene_gt(dp_split["scene_gt_tpath"].format(scene_id=scene_id))
-
         scene_errs = []
-
         for im_ind, (im_id, im_targets) in enumerate(scene_targets.items()):
 
             if im_ind % 10 == 0:
@@ -352,7 +364,14 @@ for result_filename in p["result_filenames"]:
                     errs = {}  # Errors w.r.t. GT poses of the same object class.
                     for gt_id, gt in enumerate(scene_gt[im_id]):
                         if gt["obj_id"] != obj_id:
-                            continue
+                            if dataset == "doorlatch":
+                                enum_gt = _enum(gt["obj_id"])
+                                if int(enum_gt) != int(obj_id):
+                                    print("\nSkipping incorrect detection.")
+                                    continue
+                            else:
+                                print("\nSkipping incorrect detection.")
+                                continue
 
                         # Ground-truth pose.
                         R_g = gt["cam_R_m2c"]
@@ -373,6 +392,8 @@ for result_filename in p["result_filenames"]:
                         if p["error_type"] in ["ad", "add", "adi", "mssd"]:
                             center_dist = np.linalg.norm(t_e - t_g)
                             spheres_overlap = center_dist < models_info[obj_id]["diameter"]
+                            print(spheres_overlap, center_dist, models_info[obj_id]["diameter"])
+                            
 
                         if p["error_type"] == "vsd":
                             if not sphere_projections_overlap:
