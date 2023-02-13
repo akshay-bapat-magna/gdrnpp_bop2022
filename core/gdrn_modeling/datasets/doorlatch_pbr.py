@@ -3,6 +3,7 @@ import hashlib
 import os
 import os.path as osp
 import sys
+import yaml
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 PROJ_ROOT = osp.normpath(osp.join(cur_dir, "../../.."))
@@ -26,6 +27,9 @@ from lib.utils.utils import dprint, iprint, lazy_property
 logger = logging.getLogger(__name__)
 DATASETS_ROOT = osp.normpath(osp.join(PROJ_ROOT, "datasets"))
 
+# Read information from a central config file for convenience
+with open(osp.join(PROJ_ROOT, "configs/common.yml")) as f:
+    cfg = yaml.load(f, Loader=yaml.BaseLoader)
 
 class DOORLATCH_PBR_Dataset:
     def __init__(self, data_cfg):
@@ -34,6 +38,11 @@ class DOORLATCH_PBR_Dataset:
         and decide whether to load them into dataloader/network later
         with_masks:
         """
+
+        # Read information from a central config file for convenience
+        # with open(osp.join(PROJ_ROOT, "configs/common.yml")) as f:
+        #     cfg = yaml.load(f)
+
         self.name = data_cfg["name"]
         self.data_cfg = data_cfg
 
@@ -54,7 +63,7 @@ class DOORLATCH_PBR_Dataset:
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
         self.use_cache = data_cfg.get("use_cache", False)
-        self.use_cache = True
+        self.use_cache = int(cfg["TRAIN"]["USE_CACHE"])
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
 
         # NOTE: careful! Only the selected objects
@@ -63,7 +72,7 @@ class DOORLATCH_PBR_Dataset:
         self.cat2label = {v: i for i, v in enumerate(self.cat_ids)}  # id_map
         self.label2cat = {label: cat for cat, label in self.cat2label.items()}
         self.obj2label = OrderedDict((obj, obj_id) for obj_id, obj in enumerate(self.objs))
-        self.num_scenes = 50
+        self.num_scenes = int(cfg["TRAIN"]["NUM_SCENES"])
 
         self.scenes = [f"{i:06d}" for i in range(1, self.num_scenes)]
 
@@ -124,7 +133,7 @@ class DOORLATCH_PBR_Dataset:
 
             for str_im_id in tqdm(gt_dict, postfix=f"{scene_id}"):
                 int_im_id = int(str_im_id)
-                rgb_path = osp.join(scene_root, "rgb/{:06d}.jpg").format(int_im_id)
+                rgb_path = osp.join(scene_root, "rgb/{:06d}.png").format(int_im_id)
                 assert osp.exists(rgb_path), rgb_path
 
                 depth_path = osp.join(scene_root, "depth/{:06d}.png".format(int_im_id))
@@ -327,9 +336,9 @@ SPLITS_DOORLATCH_PBR = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
-        height=640,
-        width=640,
-        use_cache=True,
+        height=int(cfg["TRAIN"]["IM_H"]),
+        width=int(cfg["TRAIN"]["IM_W"]),
+        use_cache=cfg["TRAIN"]["USE_CACHE"],
         num_to_load=-1,
         filter_invalid=True,
         ref_key="doorlatch",
@@ -350,9 +359,9 @@ for obj in ref.doorlatch.objects:
                 scale_to_meter=0.001,
                 with_masks=True,  # (load masks but may not use it)
                 with_depth=True,  # (load depth path here, but may not use it)
-                height=640,
-                width=640,
-                use_cache=True,
+                height=int(cfg["TRAIN"]["IM_H"]),
+                width=int(cfg["TRAIN"]["IM_W"]),
+                use_cache=cfg["TRAIN"]["USE_CACHE"],
                 num_to_load=-1,
                 filter_invalid=True,
                 ref_key="doorlatch",

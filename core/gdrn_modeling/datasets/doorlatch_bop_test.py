@@ -3,6 +3,7 @@ import logging
 import os
 import os.path as osp
 import sys
+import yaml
 
 import time
 from collections import OrderedDict
@@ -30,6 +31,9 @@ from core.utils.camera_geometry import adapt_image_by_K
 logger = logging.getLogger(__name__)
 DATASETS_ROOT = osp.normpath(osp.join(PROJ_ROOT, "datasets"))
 
+# Read information from a central config file for convenience
+with open(osp.join(PROJ_ROOT, "configs/common.yml")) as f:
+    cfg = yaml.load(f, Loader=yaml.BaseLoader)
 
 class DOORLATCH_BOP_TEST_Dataset(object):
     """doorlatch bop test."""
@@ -40,6 +44,11 @@ class DOORLATCH_BOP_TEST_Dataset(object):
         and decide whether to load them into dataloader/network later
         with_masks:
         """
+
+        # Read information from a central config file for convenience
+        # with open(osp.join(PROJ_ROOT, "configs/common.yml")) as f:
+        #     cfg = yaml.load(f)
+
         self.name = data_cfg["name"]
         self.data_cfg = data_cfg
 
@@ -61,7 +70,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
 
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
         self.use_cache = data_cfg.get("use_cache", True)
-        self.use_cache = False
+        self.use_cache = cfg["TEST"]["USE_CACHE"]
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
 
@@ -121,6 +130,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
         dataset_dicts = []  # ######################################################
         # it is slow because of loading and converting masks to rle
         targets = mmcv.load(self.ann_file)
+        breakpoint()
         scene_im_ids = [(item["scene_id"], item["im_id"]) for item in targets]
         scene_im_ids = sorted(list(set(scene_im_ids)))
 
@@ -145,7 +155,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
             gt_info_dict = gt_info_dicts[scene_id]
             cam_dict = cam_dicts[scene_id]
 
-            rgb_path = osp.join(scene_root, "rgb/{:06d}.jpg").format(int_im_id)
+            rgb_path = osp.join(scene_root, "rgb/{:06d}.png").format(int_im_id)
             assert osp.exists(rgb_path), rgb_path
 
             depth_path = osp.join(scene_root, "depth/{:06d}.png".format(int_im_id))
@@ -339,10 +349,10 @@ SPLITS_DOORLATCH = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
-        height=640,
-        width=640,
+        height=int(cfg["TEST"]["IM_H"]),
+        width=int(cfg["TEST"]["IM_W"]),
         cache_dir=osp.join(PROJ_ROOT, ".cache"),
-        use_cache=True,
+        use_cache=cfg["TEST"]["USE_CACHE"],
         num_to_load=-1,
         filter_invalid=False,
         ref_key="doorlatch",
@@ -356,10 +366,10 @@ SPLITS_DOORLATCH = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
-        height=640,
-        width=640,
+        height=int(cfg["TEST"]["IM_H"]),
+        width=int(cfg["TEST"]["IM_W"]),
         cache_dir=osp.join(PROJ_ROOT, ".cache"),
-        use_cache=True,
+        use_cache=cfg["TEST"]["USE_CACHE"],
         num_to_load=-1,
         filter_invalid=False,
         ref_key="doorlatch",
@@ -380,10 +390,10 @@ for obj in ref.doorlatch.objects:
             scale_to_meter=0.001,
             with_masks=True,  # (load masks but may not use it)
             with_depth=True,  # (load depth path here, but may not use it)
-            height=640,
-            width=640,
+            height=int(cfg["TEST"]["IM_H"]),
+            width=int(cfg["TEST"]["IM_W"]),
             cache_dir=osp.join(PROJ_ROOT, ".cache"),
-            use_cache=True,
+            use_cache=cfg["TEST"]["USE_CACHE"],
             num_to_load=-1,
             filter_invalid=False,
             ref_key="doorlatch",
