@@ -644,11 +644,11 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         error_names = ["ad", "re", "te", "proj"]
         # yapf: disable
         metric_names = [
-            "ad_2", "ad_5", "ad_10",
+            "ad_2 (perc_obj_dia)", "ad_5 (perc_obj_dia)", "ad_10 (perc_obj_dia)",
             "rete_2", "rete_5", "rete_10",
-            "re_2", "re_5", "re_10",
-            "te_2", "te_5", "te_10",
-            "proj_2", "proj_5", "proj_10",
+            "re_2 (deg)", "re_5 (deg)", "re_10 (deg)",
+            "te_2 (perc_obj_dia)", "te_5 (perc_obj_dia)", "te_10 (perc_obj_dia)",
+            "proj_2 (px)", "proj_5 (px)", "proj_10 (px)",
         ]
         # yapf: enable
 
@@ -729,25 +729,26 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 errors[obj_name]["te"].append(t_error)
                 errors[obj_name]["proj"].append(proj_2d_error)
                 ############
-                recalls[obj_name]["ad_2"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
-                recalls[obj_name]["ad_5"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
-                recalls[obj_name]["ad_10"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+                recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+
                 # deg, cm
                 recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
                 recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
                 recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
 
-                recalls[obj_name]["re_2"].append(float(r_error < 2))
-                recalls[obj_name]["re_5"].append(float(r_error < 5))
-                recalls[obj_name]["re_10"].append(float(r_error < 10))
+                recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
 
-                recalls[obj_name]["te_2"].append(float(t_error < 0.02))
-                recalls[obj_name]["te_5"].append(float(t_error < 0.05))
-                recalls[obj_name]["te_10"].append(float(t_error < 0.1))
+                recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
+                recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
+                recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
                 # px
-                recalls[obj_name]["proj_2"].append(float(proj_2d_error < 2))
-                recalls[obj_name]["proj_5"].append(float(proj_2d_error < 5))
-                recalls[obj_name]["proj_10"].append(float(proj_2d_error < 10))
+                recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
 
         # summarize
         obj_names = sorted(list(recalls.keys()))
@@ -775,14 +776,14 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             for obj_name in obj_names:
                 res = errors[obj_name][error_name]
                 if len(res) > 0:
-                    line.append(f"{np.mean(res):.2f}")
+                    line.append(f"{np.mean(res):.4f}")
                     this_line_res.append(np.mean(res))
                 else:
                     line.append(float("nan"))
                     this_line_res.append(float("nan"))
             # mean
             if len(obj_names) > 0:
-                line.append(f"{np.mean(this_line_res):.2f}")
+                line.append(f"{np.mean(this_line_res):.4f}")
             big_tab.append(line)
         ### log big tag
         self._logger.info("recalls")
@@ -918,25 +919,25 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 errors[obj_name]["te"].append(t_error)
                 errors[obj_name]["proj"].append(proj_2d_error)
                 ############
-                precisions[obj_name]["ad_2"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
-                precisions[obj_name]["ad_5"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
-                precisions[obj_name]["ad_10"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+                precisions[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                precisions[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                precisions[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
                 # deg, cm
-                precisions[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
-                precisions[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
-                precisions[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+                precisions[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.002))
+                precisions[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.005))
+                precisions[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.01))
 
-                precisions[obj_name]["re_2"].append(float(r_error < 2))
-                precisions[obj_name]["re_5"].append(float(r_error < 5))
-                precisions[obj_name]["re_10"].append(float(r_error < 10))
+                precisions[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                precisions[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                precisions[obj_name]["re_10 (deg)"].append(float(r_error < 10))
 
-                precisions[obj_name]["te_2"].append(float(t_error < 0.02))
-                precisions[obj_name]["te_5"].append(float(t_error < 0.05))
-                precisions[obj_name]["te_10"].append(float(t_error < 0.1))
+                precisions[obj_name]["te_2 (mm)"].append(float(t_error < 0.002))
+                precisions[obj_name]["te_5 (mm)"].append(float(t_error < 0.005))
+                precisions[obj_name]["te_10 (mm)"].append(float(t_error < 0.01))
                 # px
-                precisions[obj_name]["proj_2"].append(float(proj_2d_error < 2))
-                precisions[obj_name]["proj_5"].append(float(proj_2d_error < 5))
-                precisions[obj_name]["proj_10"].append(float(proj_2d_error < 10))
+                precisions[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                precisions[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                precisions[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
 
         # summarize
         obj_names = sorted(list(precisions.keys()))
