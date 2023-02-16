@@ -20,6 +20,8 @@ from tabulate import tabulate
 from tqdm import tqdm
 from transforms3d.quaternions import quat2mat
 from pytorch_lightning.lite import LightningLite
+import matplotlib.pyplot as plt
+import pickle
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 import ref
@@ -602,7 +604,9 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 obj_name = self._metadata.objs[anno["category_id"]]
                 if obj_name not in self.gts:
                     self.gts[obj_name] = OrderedDict()
-                self.gts[obj_name][file_name] = {"R": R, "t": trans, "K": K}
+                if file_name not in self.gts[obj_name]:
+                    self.gts[obj_name][file_name] = []
+                self.gts[obj_name][file_name].append({"R": R, "t": trans, "K": K})
 
     def reorganize_preds(self, _predictions):
         # re-organize list of dicts to pred_dict = preds[obj_name][file_name]
@@ -641,7 +645,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         errors = OrderedDict()
         self.get_gts()
 
-        error_names = ["ad", "re", "te", "proj"]
+        error_names = ["ad", "re (deg)", "te (m)", "proj"]
         # yapf: disable
         metric_names = [
             "ad_2 (perc_obj_dia)", "ad_5 (perc_obj_dia)", "ad_10 (perc_obj_dia)",
@@ -651,7 +655,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             "proj_2 (px)", "proj_5 (px)", "proj_10 (px)",
         ]
         # yapf: enable
+        # for k, v in self.gts['3'].items():
+        #     print(k)
+        #     print(v)
+        #     breakpoint()
 
+        # Loop for each object
         for obj_name in self.gts:
             if obj_name not in self._predictions:
                 continue
@@ -669,87 +678,113 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             #################
             obj_gts = self.gts[obj_name]
             obj_preds = self._predictions[obj_name]
+
+            # Loop for each image
             for file_name, gt_anno in obj_gts.items():
                 if file_name not in obj_preds:  # no pred found
                     for metric_name in metric_names:
                         recalls[obj_name][metric_name].append(0.0)
                     continue
-                # compute each metric
-                R_pred = obj_preds[file_name][0]["R"]  # assume only one instance for each object in an image
-                t_pred = obj_preds[file_name][0]["t"]
 
-                R_gt = gt_anno["R"]
-                t_gt = gt_anno["t"]
+                # Loop for each GT
+                for i in range(len(gt_anno)):
+                    R_gt = gt_anno[i]["R"]
+                    t_gt = gt_anno[i]["t"]
+                    ad_min = np.inf
 
-                t_error = te(t_pred, t_gt)
+                    # Loop for each prediction
+                    for j in range(len(obj_preds[file_name])):
 
-                if obj_name in cfg.DATASETS.SYM_OBJS:
-                    R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
-                    r_error = re(R_pred, R_gt_sym)
+                        R_pred = obj_preds[file_name][j]["R"]  # assume only one instance for each object in an image
+                        t_pred = obj_preds[file_name][j]["t"]
 
-                    proj_2d_error = arp_2d(
-                        R_pred,
-                        t_pred,
-                        R_gt_sym,
-                        t_gt,
-                        pts=self.models_3d[cur_label]["pts"],
-                        K=gt_anno["K"],
-                    )
+                        if obj_name in cfg.DATASETS.SYM_OBJS:
+                            R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
+                            
+                            ad_error_temp = adi(
+                                R_pred,
+                                t_pred,
+                                R_gt,
+                                t_gt,
+                                pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                            )
 
-                    ad_error = adi(
-                        R_pred,
-                        t_pred,
-                        R_gt,
-                        t_gt,
-                        pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
-                    )
-                else:
-                    r_error = re(R_pred, R_gt)
+                            if ad_error_temp < ad_min:
+                                ad_error = ad_error_temp
+                                ad_min = ad_error_temp
+                            else:
+                                continue
 
-                    proj_2d_error = arp_2d(
-                        R_pred,
-                        t_pred,
-                        R_gt,
-                        t_gt,
-                        pts=self.models_3d[cur_label]["pts"],
-                        K=gt_anno["K"],
-                    )
+                            r_error = re(R_pred, R_gt_sym)
 
-                    ad_error = add(
-                        R_pred,
-                        t_pred,
-                        R_gt,
-                        t_gt,
-                        pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
-                    )
+                            proj_2d_error = arp_2d(
+                                R_pred,
+                                t_pred,
+                                R_gt_sym,
+                                t_gt,
+                                pts=self.models_3d[cur_label]["pts"],
+                                K=gt_anno[i]["K"],
+                            )
 
-                #########
-                errors[obj_name]["ad"].append(ad_error)
-                errors[obj_name]["re"].append(r_error)
-                errors[obj_name]["te"].append(t_error)
-                errors[obj_name]["proj"].append(proj_2d_error)
-                ############
-                recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
-                recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
-                recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+                            
+                        else:
+                            ad_error_temp = add(
+                                R_pred,
+                                t_pred,
+                                R_gt,
+                                t_gt,
+                                pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                            )
 
-                # deg, cm
-                recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
-                recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
-                recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+                            if ad_error_temp < ad_min:
+                                ad_error = ad_error_temp
+                                ad_min = ad_error_temp
+                            else:
+                                continue
+                            
+                            r_error = re(R_pred, R_gt)
 
-                recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
-                recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
-                recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+                            proj_2d_error = arp_2d(
+                                R_pred,
+                                t_pred,
+                                R_gt,
+                                t_gt,
+                                pts=self.models_3d[cur_label]["pts"],
+                                K=gt_anno[i]["K"],
+                            )
+                        
+                        t_error = te(t_pred, t_gt)
 
-                recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
-                recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
-                recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
-                # px
-                recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
-                recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
-                recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+                            
 
+                    #########
+                    errors[obj_name]["ad"].append(ad_error)
+                    errors[obj_name]["re (deg)"].append(r_error)
+                    errors[obj_name]["te (m)"].append(t_error)
+                    errors[obj_name]["proj"].append(proj_2d_error)
+                    ############
+                    recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                    recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                    recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+
+                    # deg, cm
+                    recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
+                    recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
+                    recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+
+                    recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                    recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                    recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+
+                    recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
+                    recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
+                    recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
+                    # px
+                    recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                    recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                    recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+        
+        
         # summarize
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
@@ -770,7 +805,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 line.append(f"{100 * np.mean(this_line_res):.2f}")
             big_tab.append(line)
 
-        for error_name in ["re", "te"]:
+        for error_name in ["re (deg)", "te (m)"]:
             line = [error_name]
             this_line_res = []
             for obj_name in obj_names:
@@ -806,7 +841,71 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             self._logger.warning(
                 "\n The current evaluation on multi-gpu might be incorrect, run with single-gpu instead."
             )
+        
+        # Prevents matplotlib and PIL from spamming stdout with debug messages
+        logging.getLogger('matplotlib.font_manager').disabled = True
+        logging.getLogger('matplotlib.pyplot').disabled = True
+        logging.getLogger('PIL.PngImagePlugin').disabled = True
 
+        # Plot threshold vs recall for te and re
+        rots_arr = np.array(errors[obj_name]["re (deg)"])
+        trans_arr = np.array(errors[obj_name]["te (m)"])
+
+        assert rots_arr.shape == trans_arr.shape
+        
+        rot_stepsize = 0.25    # Degree
+        rot = 0.0
+        rot_max = 10
+
+        trans_stepsize = 0.0001 # Meters
+        trans = 0.0
+        trans_max = 0.05
+
+        # Rotation threshold on y-axis, trans on x-axis
+        recall_matrix = np.zeros((int(rot_max/rot_stepsize)+1, int(trans_max/trans_stepsize)+1))
+        i = 0
+        j = 0
+
+        print("Plotting recall vs threshold plot...")
+        with tqdm(total=100) as pbar:
+            while rot < rot_max:
+                trans = 0.0
+                j = 0
+                while trans < trans_max:
+                    rot_truth = rots_arr < rot
+                    trans_truth = trans_arr < trans
+                    recall_matrix[i,j] = np.sum(rot_truth & trans_truth)/float(rots_arr.shape[0])
+
+                    trans += trans_stepsize
+                    j += 1
+                rot += rot_stepsize
+                i += 1
+                pbar.update(int(rot_stepsize*100/rot_max))
+        
+        # Function to annotate actual recall values when hovering mouse over plot
+        def format_coord(x, y):
+            col = int(x + 0.5)
+            row = int(y + 0.5)
+            if col >= 0 and col < trans_max/trans_stepsize and row >= 0 and row < rot_max/rot_stepsize:
+                z = recall_matrix[row, col]
+                return 'trans=%1.4f, rot=%1.4f, recall=%1.4f' % (x*trans_stepsize*1000, y*rot_stepsize, z)
+            else:
+                return 'x=%1.4f, y=%1.4f' % (x, y)
+        fig, ax = plt.subplots()
+        plt.title('Threshold vs Recall Heat Map')
+        plt.imshow(recall_matrix, cmap='hot', interpolation='nearest')
+        plt.xlabel('Rotational error threshold (degrees)')
+        plt.ylabel('Translational error threshold (mm)')
+        plt.xticks(np.arange(0, 100, step=10), np.arange(0, rot_max, step=rot_max/10))
+        plt.yticks(np.arange(0, 100, step=10), np.arange(0, trans_max*1000, step=trans_max*100))
+        plt.colorbar(plt.pcolor(recall_matrix))
+        ax.format_coord = format_coord
+        plt.gca().invert_yaxis()
+        plt.show()
+        savefile_pickle = osp.join(self._output_dir, 'recall_vs_thresh.pkl')
+        savefile_png = osp.join(self._output_dir, 'recall_vs_thresh.png')
+        # pickle.dump(fig, open(savefile_pickle, 'wb'))
+        plt.savefig(savefile_png)
         return {}
 
     def _eval_predictions_precision(self):
