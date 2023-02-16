@@ -1,11 +1,12 @@
 TRAIN:
-  USE_CACHE: FALSE
-  NUM_SCENES: 5
+  USE_CACHE: False
+  NUM_SCENES: 10
   IM_W: 1280
   IM_H: 1280
 
 TEST:
-  USE_CACHE: FALSE
+  USE_CACHE: False
   NUM_SCENES: 5
   IM_W: 1280
   IM_H: 1280
+  TARGETS: "BOP_DATASETS/doorlatch/test_targets_ablation.json"
