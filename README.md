@@ -40,6 +40,10 @@ Download the trained models at [Onedrive](https://mailstsinghuaeducn-my.sharepoi
     ```
     sh core/csrc/compile.sh
     ```
+* Add path to environment:
+    ```
+    export BOP_PATH="<path_to_gdrn_bop2022>/datasets/BOP_DATASETS/"
+    ```
 
 ## Detection
 
