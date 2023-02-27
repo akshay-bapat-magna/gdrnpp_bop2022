@@ -1,5 +1,5 @@
 TRAIN:
-  USE_CACHE: False
+  USE_CACHE: True
   NUM_SCENES: 10
   IM_W: 1280
   IM_H: 1280

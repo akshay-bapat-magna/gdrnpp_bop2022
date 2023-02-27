@@ -70,7 +70,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
 
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
         self.use_cache = data_cfg.get("use_cache", True)
-        self.use_cache = cfg["TEST"]["USE_CACHE"]
+        self.use_cache = eval(cfg["TEST"]["USE_CACHE"])
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
 
@@ -130,7 +130,6 @@ class DOORLATCH_BOP_TEST_Dataset(object):
         dataset_dicts = []  # ######################################################
         # it is slow because of loading and converting masks to rle
         targets = mmcv.load(self.ann_file)
-        breakpoint()
         scene_im_ids = [(item["scene_id"], item["im_id"]) for item in targets]
         scene_im_ids = sorted(list(set(scene_im_ids)))
 
@@ -345,7 +344,7 @@ SPLITS_DOORLATCH = dict(
         dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_pbr"),
         models_root=ref.doorlatch.model_dir,
         objs=ref.doorlatch.objects,  # selected objects
-        ann_file=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_targets_bop19.json"),
+        ann_file=osp.join(DATASETS_ROOT, cfg["TEST"]["TARGETS"]),
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
@@ -362,7 +361,7 @@ SPLITS_DOORLATCH = dict(
         dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_pbr_alignK"),
         models_root=ref.doorlatch.model_dir,
         objs=ref.doorlatch.objects,  # selected objects
-        ann_file=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_targets_bop19.json"),
+        ann_file=osp.join(DATASETS_ROOT, cfg["TEST"]["TARGETS"]),
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
@@ -386,7 +385,7 @@ for obj in ref.doorlatch.objects:
             dataset_root=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_pbr"),
             models_root=ref.doorlatch.model_dir,
             objs=[obj],
-            ann_file=osp.join(DATASETS_ROOT, "BOP_DATASETS/doorlatch/test_targets_bop19.json"),
+            ann_file=osp.join(DATASETS_ROOT, cfg["TEST"]["TARGETS"]),
             scale_to_meter=0.001,
             with_masks=True,  # (load masks but may not use it)
             with_depth=True,  # (load depth path here, but may not use it)

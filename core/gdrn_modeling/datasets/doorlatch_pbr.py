@@ -63,7 +63,7 @@ class DOORLATCH_PBR_Dataset:
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
         self.use_cache = data_cfg.get("use_cache", False)
-        self.use_cache = cfg["TRAIN"]["USE_CACHE"]
+        self.use_cache = eval(cfg["TRAIN"]["USE_CACHE"])
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
 
         # NOTE: careful! Only the selected objects
@@ -111,6 +111,7 @@ class DOORLATCH_PBR_Dataset:
         cache_path = osp.join(self.cache_dir, "dataset_dicts_{}_{}.pkl".format(self.name, hashed_file_name))
 
         if osp.exists(cache_path) and self.use_cache:
+            logger.info(f"use_cache: {type(self.use_cache)}")
             logger.info("load cached dataset dicts from {}".format(cache_path))
             return mmcv.load(cache_path)
 

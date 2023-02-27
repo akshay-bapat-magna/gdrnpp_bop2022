@@ -78,7 +78,9 @@ def calc_localization_scores(scene_ids, obj_ids, matches, n_top, do_print=True):
     insts = {i: {j: defaultdict(lambda: 0) for j in scene_ids} for i in obj_ids}
     for m in matches:
         if m["valid"]:
+            print(f"obj_id {m['obj_id']} scene_id {m['scene_id']} im_id {m['im_id']}")
             insts[m["obj_id"]][m["scene_id"]][m["im_id"]] += 1
+            
 
     # Count the number of targets = object instances to be found.
     # For SiSo, there is either zero or one target in each image - there is just

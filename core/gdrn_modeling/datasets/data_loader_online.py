@@ -351,13 +351,13 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         # some synthetic data already has bg, img_type should be real or something else but not syn
         img_type = dataset_dict.get("img_type", "real")
         do_replace_bg = False
-        if img_type == "syn":
-            log_first_n(logging.WARNING, "replace bg", n=10)
-            do_replace_bg = True
-        else:  # real image
-            if np.random.rand() < cfg.INPUT.CHANGE_BG_PROB:
-                log_first_n(logging.WARNING, "replace bg for real", n=10)
-                do_replace_bg = True
+        # if img_type == "syn":
+        #     log_first_n(logging.WARNING, "replace bg", n=10)
+        #     do_replace_bg = True
+        # else:  # real image
+        #     if np.random.rand() < cfg.INPUT.CHANGE_BG_PROB:
+        #         log_first_n(logging.WARNING, "replace bg for real", n=10)
+        #         do_replace_bg = True
         if do_replace_bg:
             assert "segmentation" in dataset_dict["inst_infos"]
             mask = cocosegm2mask(dataset_dict["inst_infos"]["segmentation"], im_H_ori, im_W_ori)
@@ -489,6 +489,11 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         ).transpose(2, 0, 1)
 
         roi_img = self.normalize_image(cfg, roi_img)
+        # print("\n\n\n\n\n\n", roi_img.shape)
+        # img = copy.deepcopy(roi_img)
+        # cv2.imshow('', img.transpose(1,2,0))
+        # cv2.waitKey(0)
+        
 
         # roi_depth --------------------------------------
         if self.with_depth:
@@ -705,6 +710,10 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
             ).transpose(2, 0, 1)
 
             roi_img = self.normalize_image(cfg, roi_img)
+            # print("\n", roi_img.shape)
+            # img = copy.deepcopy(roi_img)
+            # cv2.imshow('', img.transpose(1,2,0))
+            # cv2.waitKey(0)
             roi_infos["roi_img"].append(roi_img.astype("float32"))
 
             # roi_depth

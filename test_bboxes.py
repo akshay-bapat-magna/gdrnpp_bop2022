@@ -2,7 +2,7 @@ import cv2
 import json
 import os
 
-dataset = "doorlatch"	# or tless
+dataset = "doorlatch"	# doorlatch or tless
 
 if dataset == "tless":
 	json_path = "./datasets/BOP_DATASETS/tless/test/test_bboxes/"
@@ -28,9 +28,9 @@ for image_file in sorted(os.listdir(images_path)):
 		p1 = (int(box[0]), int(box[1]))
 		p2 = (p1[0]+int(box[2]), p1[1]+int(box[3]))
 		img = cv2.rectangle(img, p1, p2, (0,200,0), 2)
-
-	cv2.imshow(f"Image {img_id}", img)
-	if cv2.waitKey(0) & 0xFF == ord('q'):
+	if img_id >= 157:
+		cv2.imshow(f"Image {img_id}", img)
+		if cv2.waitKey(0) & 0xFF == ord('q'):
+			cv2.destroyAllWindows()
+			break
 		cv2.destroyAllWindows()
-		break
-	cv2.destroyAllWindows()

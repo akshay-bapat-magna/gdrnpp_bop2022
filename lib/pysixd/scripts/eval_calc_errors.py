@@ -367,10 +367,10 @@ for result_filename in p["result_filenames"]:
                             if dataset == "doorlatch":
                                 enum_gt = _enum(gt["obj_id"])
                                 if int(enum_gt) != int(obj_id):
-                                    print("\nSkipping incorrect detection.")
+                                    # print("\nSkipping incorrect detection.")
                                     continue
                             else:
-                                print("\nSkipping incorrect detection.")
+                                # print("\nSkipping incorrect detection.")
                                 continue
 
                         # Ground-truth pose.
@@ -392,7 +392,7 @@ for result_filename in p["result_filenames"]:
                         if p["error_type"] in ["ad", "add", "adi", "mssd"]:
                             center_dist = np.linalg.norm(t_e - t_g)
                             spheres_overlap = center_dist < models_info[obj_id]["diameter"]
-                            print(spheres_overlap, center_dist, models_info[obj_id]["diameter"])
+                            # print(spheres_overlap, center_dist, models_info[obj_id]["diameter"])
                             
 
                         if p["error_type"] == "vsd":

@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from core.utils.solver_utils import build_optimizer_with_params
 from detectron2.utils.events import get_event_storage
 from mmcv.runner import load_checkpoint
+import cv2
 
 from ..losses.coor_cross_entropy import CrossEntropyHeatmapLoss
 from ..losses.l2_loss import L2Loss
@@ -315,6 +316,22 @@ class GDRN_DoubleMask(nn.Module):
         g_head_cfg = net_cfg.GEO_HEAD
         pnp_net_cfg = net_cfg.PNP_NET
         loss_cfg = net_cfg.LOSS_CFG
+
+        # print("\n\n\nout_region")
+        # print(type(out_region))
+        # print(out_region.shape)
+        # print("gt_xyz")
+        # print(type(gt_xyz))
+        # print(gt_xyz.shape)
+        # print("gt_xyz_bin")
+        # print(type(gt_xyz_bin))
+        # print(gt_xyz_bin.shape)
+        # a = gt_xyz.cpu().detach().numpy()[0]
+        
+        # cv2.imwrite(f'channel.png', a)
+        # cv2.imshow(f'channel', a.transpose(1,2,0))
+        # cv2.waitKey(0)
+       
 
         loss_dict = {}
 

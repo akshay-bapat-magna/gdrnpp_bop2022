@@ -56,7 +56,8 @@ zFar = 6.0
 
 # NOTE: for tless, the camera matrix is not fixed!
 # camera_matrix = np.array([3500, 0.0, 320.0, 0.0, 3500, 320.0, 0.0, 0.0, 1.0]).reshape(3, 3)
-camera_matrix = np.array([1800.0, 0.0, 320.0000000074506, 0.0, 1800.0, 320.0000000074506, 0.0, 0.0, 1.0]).reshape(3, 3)
+# camera_matrix = np.array([1800.0, 0.0, 320.0000000074506, 0.0, 1800.0, 320.0000000074506, 0.0, 0.0, 1.0]).reshape(3, 3)
+camera_matrix = np.array([9000.0, 0.0, 1280., 0.0, 9000.0, 1280., 0.0, 0.0, 1.0]).reshape(3, 3)
 
 
 diameters = (

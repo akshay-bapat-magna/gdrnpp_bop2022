@@ -776,6 +776,10 @@ class GDRN_DatasetFromList(Base_DatasetFromList):
             ).transpose(2, 0, 1)
 
             roi_img = self.normalize_image(cfg, roi_img)
+            # print("\n", roi_img.shape)
+            # img = copy.deepcopy(roi_img)
+            # cv2.imshow('', img.transpose(1,2,0))
+            # cv2.waitKey(0)
             roi_infos["roi_img"].append(roi_img.astype("float32"))
 
             # roi_depth

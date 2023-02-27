@@ -54,6 +54,7 @@ class TLESS_PBR_Dataset:
         self.num_to_load = data_cfg["num_to_load"]  # -1
         self.filter_invalid = data_cfg.get("filter_invalid", True)
         self.use_cache = data_cfg.get("use_cache", True)
+        self.use_cache = True
         self.cache_dir = data_cfg.get("cache_dir", osp.join(PROJ_ROOT, ".cache"))  # .cache
 
         # NOTE: careful! Only the selected objects

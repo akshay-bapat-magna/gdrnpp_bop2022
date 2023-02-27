@@ -24,6 +24,7 @@ doorlatch_original_path = "datasets/BOP_DATASETS/doorlatch/test/test_bboxes/"
 preds = torch.load(doorlatch_original_path + "instances_predictions.pth")
 
 compensate_offset = True
+factor = 1#720/1280
 
 for item in tqdm(preds):
 	key = f"0/{item['image_id']}"
@@ -55,10 +56,10 @@ for item in tqdm(preds):
 				# temp['bbox_est'][3] += temp['bbox_est'][1]
 
 				if compensate_offset:
-					temp['bbox_est'][0]/=1.125
-					temp['bbox_est'][1]/=1.125
-					temp['bbox_est'][2]/=1.125
-					temp['bbox_est'][3]/=1.125
+					temp['bbox_est'][0]/=factor
+					temp['bbox_est'][1]/=factor
+					temp['bbox_est'][2]/=factor
+					temp['bbox_est'][3]/=factor
 
 				temp['obj_id'] = i+1
 				temp['score'] = scores[i][j]

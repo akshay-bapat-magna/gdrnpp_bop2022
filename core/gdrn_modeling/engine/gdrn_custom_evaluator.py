@@ -22,6 +22,7 @@ from transforms3d.quaternions import quat2mat
 from pytorch_lightning.lite import LightningLite
 import matplotlib.pyplot as plt
 import pickle
+from scipy.spatial.transform import Rotation as R
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 import ref
@@ -38,6 +39,11 @@ from lib.vis_utils.image import grid_show, vis_image_bboxes_cv2
 from .engine_utils import get_out_coor, get_out_mask
 
 PROJ_ROOT = osp.normpath(osp.join(cur_dir, "../../.."))
+
+
+def draw_histogram(arr):
+    plt.hist(arr, bins=36)
+    plt.show()
 
 
 class GDRN_EvaluatorCustom(DatasetEvaluator):
@@ -692,11 +698,17 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     t_gt = gt_anno[i]["t"]
                     ad_min = np.inf
 
+                    if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
+                        print(f"\n\nGT #{i}\n{R_gt}\n{t_gt}\n")
+
                     # Loop for each prediction
                     for j in range(len(obj_preds[file_name])):
 
-                        R_pred = obj_preds[file_name][j]["R"]  # assume only one instance for each object in an image
+                        R_pred = obj_preds[file_name][j]["R"]
                         t_pred = obj_preds[file_name][j]["t"]
+                        # R_pred = gt_anno[i]["R"].copy()
+                        # t_pred = gt_anno[i]["t"].copy()
+                        # R_pred = np.matmul(R_pred, R.from_euler('z', 5, degrees=True).as_matrix())
 
                         if obj_name in cfg.DATASETS.SYM_OBJS:
                             R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
@@ -726,6 +738,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                                 K=gt_anno[i]["K"],
                             )
 
+                            t_error = te(t_pred, t_gt)
+
                             
                         else:
                             ad_error_temp = add(
@@ -743,6 +757,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                                 continue
                             
                             r_error = re(R_pred, R_gt)
+                            
 
                             proj_2d_error = arp_2d(
                                 R_pred,
@@ -753,10 +768,18 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                                 K=gt_anno[i]["K"],
                             )
                         
-                        t_error = te(t_pred, t_gt)
+                            t_error = te(t_pred, t_gt)
+
+                            # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
+                            #     print(f"\n\nPred #{j}\n{R_pred}\n{t_pred}\n\nAD: {ad_error}\nTE: {t_error}\nRE: {r_error}\n")
 
                             
-
+                    assert ad_error == ad_min
+                    # if r_error > 170:
+                    #     print(R_pred)
+                    #     print(R_gt)
+                    #     print(file_name)
+                    #     breakpoint()
                     #########
                     errors[obj_name]["ad"].append(ad_error)
                     errors[obj_name]["re (deg)"].append(r_error)
@@ -786,6 +809,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         
         
         # summarize
+        # draw_histogram(errors[obj_name]["te (m)"])
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]
@@ -852,14 +876,17 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         trans_arr = np.array(errors[obj_name]["te (m)"])
 
         assert rots_arr.shape == trans_arr.shape
-        
-        rot_stepsize = 0.25    # Degree
+        num_steps = 500
+
+        # Degree
         rot = 0.0
         rot_max = 10
+        rot_stepsize = (rot_max - rot)/num_steps
 
-        trans_stepsize = 0.0001 # Meters
+        # Meters
         trans = 0.0
         trans_max = 0.05
+        trans_stepsize = (trans_max - trans)/num_steps
 
         # Rotation threshold on y-axis, trans on x-axis
         recall_matrix = np.zeros((int(rot_max/rot_stepsize)+1, int(trans_max/trans_stepsize)+1))
@@ -894,18 +921,20 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         fig, ax = plt.subplots()
         plt.title('Threshold vs Recall Heat Map')
         plt.imshow(recall_matrix, cmap='hot', interpolation='nearest')
-        plt.xlabel('Rotational error threshold (degrees)')
-        plt.ylabel('Translational error threshold (mm)')
-        plt.xticks(np.arange(0, 100, step=10), np.arange(0, rot_max, step=rot_max/10))
-        plt.yticks(np.arange(0, 100, step=10), np.arange(0, trans_max*1000, step=trans_max*100))
+        plt.ylabel('Rotational error threshold (degrees)')
+        plt.xlabel('Translational error threshold (mm)')
+        plt.yticks(np.arange(0, num_steps, step=num_steps//10), np.arange(0, rot_max, step=rot_max/10))
+        plt.xticks(np.arange(0, num_steps, step=num_steps//10), np.arange(0, trans_max*1000, step=trans_max*100))
         plt.colorbar(plt.pcolor(recall_matrix))
         ax.format_coord = format_coord
         plt.gca().invert_yaxis()
-        plt.show()
+
         savefile_pickle = osp.join(self._output_dir, 'recall_vs_thresh.pkl')
         savefile_png = osp.join(self._output_dir, 'recall_vs_thresh.png')
         # pickle.dump(fig, open(savefile_pickle, 'wb'))
         plt.savefig(savefile_png)
+        # plt.show()
+        
         return {}
 
     def _eval_predictions_precision(self):

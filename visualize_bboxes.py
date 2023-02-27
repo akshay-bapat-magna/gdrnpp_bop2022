@@ -53,7 +53,7 @@ if __name__ == "__main__":
 	# res_serialized2 = serializeResults(results2)
 
 	for imgid in range(1000):
-		img = cv2.imread(f"{imagePath}{imgid:06d}.jpg")
+		img = cv2.imread(f"{imagePath}{imgid:06d}.png")
 		boxes, scores, cls_ids = getData(res_serialized, imgid)
 		# boxes2, scores2, cls_ids2 = getData(res_serialized2, imgid)
 		class_names = ["Dummy", "SB", "MB", "LB", "BSC", "SP"]
