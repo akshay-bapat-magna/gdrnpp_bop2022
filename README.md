@@ -34,7 +34,7 @@ Download the trained models at [Onedrive](https://mailstsinghuaeducn-my.sharepoi
 
 ## Requirements
 * Ubuntu 16.04/18.04/20.04, CUDA 10.1/10.2/11.6, python >= 3.7, PyTorch >= 1.9, torchvision
-* Install `detectron2` from [source](https://github.com/facebookresearch/detectron2)
+* Install `detectron2` from [source](https://github.com/facebookresearch/detectron2): python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
 * `sh scripts/install_deps.sh`
 * Compile the cpp extension for `farthest points sampling (fps)`:
     ```
