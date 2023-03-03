@@ -125,6 +125,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
         t_start = time.perf_counter()
 
         logger.info("loading dataset dicts: {}".format(self.name))
+        logger.info(f"Annotations file used: {self.ann_file}")
         self.num_instances_without_valid_segmentation = 0
         self.num_instances_without_valid_box = 0
         dataset_dicts = []  # ######################################################
@@ -154,7 +155,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
             gt_info_dict = gt_info_dicts[scene_id]
             cam_dict = cam_dicts[scene_id]
 
-            rgb_path = osp.join(scene_root, "rgb/{:06d}.png").format(int_im_id)
+            rgb_path = osp.join(scene_root, "rgb/{:06d}.jpg").format(int_im_id)
             assert osp.exists(rgb_path), rgb_path
 
             depth_path = osp.join(scene_root, "depth/{:06d}.png".format(int_im_id))

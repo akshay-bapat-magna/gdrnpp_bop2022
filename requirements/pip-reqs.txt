@@ -38,3 +38,4 @@ tqdm
 albumentations
 pyquaternion
 fvcore
+cffi

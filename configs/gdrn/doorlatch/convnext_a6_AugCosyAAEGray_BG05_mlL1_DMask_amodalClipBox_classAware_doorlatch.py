@@ -34,12 +34,12 @@ INPUT = dict(
 )
 
 SOLVER = dict(
-    IMS_PER_BATCH=100,
+    IMS_PER_BATCH=16,
     TOTAL_EPOCHS=80,  # 30
     LR_SCHEDULER_NAME="flat_and_anneal",
     ANNEAL_METHOD="cosine",  # "cosine"
     ANNEAL_POINT=0.72,
-    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", lr=10e-3, weight_decay=0.01),
+    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", lr=5e-3, weight_decay=0.01),
     WEIGHT_DECAY=0.0,
     WARMUP_FACTOR=0.001,
     WARMUP_ITERS=1000,
@@ -53,7 +53,7 @@ DATASETS = dict(
     TEST=("doorlatch_bop_test_pbr",),
     # AP        AP50    AP75    AR      inf.time
     DET_FILES_TEST=("datasets/BOP_DATASETS/doorlatch/test/test_bboxes/yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json",),
-    DET_TOPK_PER_OBJ=5,
+    DET_TOPK_PER_OBJ=20,
 )
 
 DATALOADER = dict(
@@ -105,7 +105,7 @@ MODEL = dict(
             # xyz loss ----------------------------
             XYZ_LOSS_TYPE="L1",  # L1 | CE_coor
             XYZ_LOSS_MASK_GT="visib",  # trunc | visib | obj
-            XYZ_LW=1.0,
+            XYZ_LW=1.0/0.03,
             # mask loss ---------------------------
             MASK_LOSS_TYPE="L1",  # L1 | BCE | CE
             MASK_LOSS_GT="trunc",  # trunc | visib | gt
@@ -116,17 +116,17 @@ MODEL = dict(
             # regionn loss -------------------------
             REGION_LOSS_TYPE="CE",  # CE
             REGION_LOSS_MASK_GT="visib",  # trunc | visib | obj
-            REGION_LW=1.0,
+            REGION_LW=0.0,
             # pm loss --------------
             PM_LOSS_SYM=True,  # NOTE: sym loss
             PM_R_ONLY=True,  # only do R loss in PM
-            PM_LW=1.0,
+            PM_LW=1.0/0.03,
             # centroid loss -------
             CENTROID_LOSS_TYPE="L1",
             CENTROID_LW=1.0,
             # z loss -----------
             Z_LOSS_TYPE="L1",
-            Z_LW=1.0,
+            Z_LW=5.0,
         ),
     ),
 )
@@ -135,8 +135,8 @@ MODEL = dict(
 VAL = dict(
     DATASET_NAME="doorlatch",
     SCRIPT_PATH="lib/pysixd/scripts/eval_pose_results_more.py",
-    TARGETS_FILENAME="test_targets_bop19.json",
-    ERROR_TYPES="mspd,mssd,vsd,ad,reS,teS",
+    TARGETS_FILENAME="test_targets_ablation.json",
+    ERROR_TYPES="mspd,mssd,vsd,ad,reS,teS,vsd",
     RENDERER_TYPE="python",  # cpp, python, egl
     SPLIT="test",
     SPLIT_TYPE="",
@@ -145,7 +145,7 @@ VAL = dict(
     SCORE_ONLY=False,  # if the errors have been calculated
     EVAL_PRINT_ONLY=False,  # if the scores/recalls have been saved
     EVAL_PRECISION=False,  # use precision or recall
-    USE_BOP=True,  # whether to use bop toolkit
+    USE_BOP=False,  # whether to use bop toolkit
 )
 
-TEST = dict(EVAL_PERIOD=0, VIS=False, TEST_BBOX_TYPE="est")  # gt | est
+TEST = dict(EVAL_PERIOD=0, VIS=True, TEST_BBOX_TYPE="est")  # gt | est

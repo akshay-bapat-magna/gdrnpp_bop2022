@@ -38,7 +38,7 @@ def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
         score = scores[i]
         if score < conf:
             continue
-        factor = 1
+        factor = 1#720/1280
         x0 = int(box[0]/factor)
         y0 = int(box[1]/factor)
         x1 = int(box[2]/factor)

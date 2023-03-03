@@ -492,7 +492,7 @@ class YOLOX_DefaultTrainer(TrainerBase):
         return input_size
 
     @classmethod
-    def build_model(cls, cfg, verbose=True):
+    def build_model(cls, cfg, verbose=False):
         """
         Returns:
             torch.nn.Module:
@@ -501,8 +501,8 @@ class YOLOX_DefaultTrainer(TrainerBase):
         Overwrite it if you'd like a different model.
         """
         model = instantiate(cfg.model)
-        if verbose:
-            logger.info("Model:\n{}".format(model))
+        # if verbose:
+        #     logger.info("Model:\n{}".format(model))
         model.to(cfg.train.device)
         return model
 

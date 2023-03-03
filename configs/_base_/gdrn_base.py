@@ -158,7 +158,7 @@ MODEL = dict(
 
 TEST = dict(
     EVAL_PERIOD=0,
-    VIS=False,
+    VIS=True,
     TEST_BBOX_TYPE="est",  # gt | est
     COLOR_AUG=False,  # use random color aug as train
     USE_PNP=False,  # use pnp or direct prediction

@@ -99,14 +99,14 @@ def default_yolox_setup(cfg, args):
     logger.info("Rank of current process: {}. World size: {}".format(rank, comm.get_world_size()))
     logger.info("Environment info:\n" + collect_env_info())
 
-    logger.info("Command line arguments: " + str(args))
-    if hasattr(args, "config_file") and args.config_file != "":
-        logger.info(
-            "Contents of args.config_file={}:\n{}".format(
-                args.config_file,
-                _highlight(PathManager.open(args.config_file, "r").read(), args.config_file),
-            )
-        )
+    # logger.info("Command line arguments: " + str(args))
+    # if hasattr(args, "config_file") and args.config_file != "":
+    #     logger.info(
+    #         "Contents of args.config_file={}:\n{}".format(
+    #             args.config_file,
+    #             _highlight(PathManager.open(args.config_file, "r").read(), args.config_file),
+    #         )
+    #     )
 
     if comm.is_main_process() and output_dir:
         # Note: some of our scripts may expect the existence of

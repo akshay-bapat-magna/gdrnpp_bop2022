@@ -41,9 +41,13 @@ from .engine_utils import get_out_coor, get_out_mask
 PROJ_ROOT = osp.normpath(osp.join(cur_dir, "../../.."))
 
 
-def draw_histogram(arr):
+def draw_histogram(arr, name, vis=False):
     plt.hist(arr, bins=36)
-    plt.show()
+    plt.title(f"{name} Errors")
+    plt.yscale('log')
+    plt.savefig(f"error_hist_{name}.png")
+    if vis:
+        plt.show()
 
 
 class GDRN_EvaluatorCustom(DatasetEvaluator):
@@ -698,12 +702,11 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     t_gt = gt_anno[i]["t"]
                     ad_min = np.inf
 
-                    if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
-                        print(f"\n\nGT #{i}\n{R_gt}\n{t_gt}\n")
+                    # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
+                        # print(f"\n\nGT #{i}\n{R_gt}\n{t_gt}\n")
 
                     # Loop for each prediction
                     for j in range(len(obj_preds[file_name])):
-
                         R_pred = obj_preds[file_name][j]["R"]
                         t_pred = obj_preds[file_name][j]["t"]
                         # R_pred = gt_anno[i]["R"].copy()
@@ -775,11 +778,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
                             
                     assert ad_error == ad_min
-                    # if r_error > 170:
-                    #     print(R_pred)
-                    #     print(R_gt)
-                    #     print(file_name)
-                    #     breakpoint()
+                    if r_error > 25:
+                        print(r_error)
+                        print(R_pred)
+                        print(R_gt)
+                        print(file_name)
+                        breakpoint()
                     #########
                     errors[obj_name]["ad"].append(ad_error)
                     errors[obj_name]["re (deg)"].append(r_error)
@@ -807,9 +811,15 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
                     recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
         
-        
+        # Prevents matplotlib and PIL from spamming stdout with debug messages
+        logging.getLogger('matplotlib.font_manager').disabled = True
+        logging.getLogger('matplotlib.pyplot').disabled = True
+        logging.getLogger('PIL.PngImagePlugin').disabled = True
+        logging.getLogger('matplotlib.ticker').disabled = True
+
         # summarize
-        # draw_histogram(errors[obj_name]["te (m)"])
+        draw_histogram(errors[obj_name]["te (m)"], "trans")
+        draw_histogram(errors[obj_name]["re (deg)"], "rot")
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]
@@ -866,10 +876,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 "\n The current evaluation on multi-gpu might be incorrect, run with single-gpu instead."
             )
         
-        # Prevents matplotlib and PIL from spamming stdout with debug messages
-        logging.getLogger('matplotlib.font_manager').disabled = True
-        logging.getLogger('matplotlib.pyplot').disabled = True
-        logging.getLogger('PIL.PngImagePlugin').disabled = True
+        
 
         # Plot threshold vs recall for te and re
         rots_arr = np.array(errors[obj_name]["re (deg)"])
@@ -880,12 +887,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
         # Degree
         rot = 0.0
-        rot_max = 10
+        rot_max = 5
         rot_stepsize = (rot_max - rot)/num_steps
 
         # Meters
         trans = 0.0
-        trans_max = 0.05
+        trans_max = 0.01
         trans_stepsize = (trans_max - trans)/num_steps
 
         # Rotation threshold on y-axis, trans on x-axis
@@ -895,10 +902,10 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
         print("Plotting recall vs threshold plot...")
         with tqdm(total=100) as pbar:
-            while rot < rot_max:
+            while rot < rot_max and i < num_steps:
                 trans = 0.0
                 j = 0
-                while trans < trans_max:
+                while trans < trans_max and j < num_steps:
                     rot_truth = rots_arr < rot
                     trans_truth = trans_arr < trans
                     recall_matrix[i,j] = np.sum(rot_truth & trans_truth)/float(rots_arr.shape[0])

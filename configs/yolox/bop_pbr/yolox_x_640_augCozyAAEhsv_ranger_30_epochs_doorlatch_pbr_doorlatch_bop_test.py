@@ -29,7 +29,7 @@ DATASETS.TRAIN = ["doorlatch_pbr_train"]
 DATASETS.TEST = ["doorlatch_bop_test_pbr"]
 
 dataloader.train.dataset.lst.names = DATASETS.TRAIN
-dataloader.train.total_batch_size = 32
+dataloader.train.total_batch_size = 64
 
 # color aug
 dataloader.train.aug_wrapper.COLOR_AUG_PROB = 0.8
@@ -99,7 +99,7 @@ dataloader.test = [
         ),
         total_batch_size=1,
         # total_batch_size=64,
-        num_workers=4,
+        num_workers=32,
         pin_memory=True,
     )
     for test_dataset_name in test.test_dataset_names

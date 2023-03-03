@@ -32,7 +32,7 @@ INPUT = dict(
 )
 
 SOLVER = dict(
-    IMS_PER_BATCH=48,
+    IMS_PER_BATCH=64,
     TOTAL_EPOCHS=40,  # 30
     LR_SCHEDULER_NAME="flat_and_anneal",
     ANNEAL_METHOD="cosine",  # "cosine"
@@ -45,7 +45,7 @@ SOLVER = dict(
 
 DATASETS = dict(
     TRAIN=(
-        "tless_train_primesense",
+        # "tless_train_primesense",
         "tless_train_pbr",
     ),
     TEST=("tless_bop_test_primesense",),
@@ -135,7 +135,7 @@ VAL = dict(
     SCRIPT_PATH="lib/pysixd/scripts/eval_pose_results_more.py",
     TARGETS_FILENAME="test_targets_bop19.json",
     ERROR_TYPES="mspd,mssd,vsd,ad,reS,teS",
-    RENDERER_TYPE="cpp",  # cpp, python, egl
+    RENDERER_TYPE="python",  # cpp, python, egl
     SPLIT="test",
     SPLIT_TYPE="",
     N_TOP=-1,  # SISO: 1, VIVO: -1 (for LINEMOD, 1/-1 are the same)
