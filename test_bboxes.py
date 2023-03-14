@@ -28,9 +28,10 @@ for image_file in sorted(os.listdir(images_path)):
 		p1 = (int(box[0]), int(box[1]))
 		p2 = (p1[0]+int(box[2]), p1[1]+int(box[3]))
 		img = cv2.rectangle(img, p1, p2, (0,200,0), 2)
-	if img_id >= 157:
-		cv2.imshow(f"Image {img_id}", img)
-		if cv2.waitKey(0) & 0xFF == ord('q'):
-			cv2.destroyAllWindows()
-			break
+	# if img_id >= 157:
+	cv2.imshow(f"Image {img_id}", img)
+	# cv2.imwrite(f'image_{img_id}.png', img)
+	if cv2.waitKey(0) & 0xFF == ord('q'):
 		cv2.destroyAllWindows()
+		break
+	cv2.destroyAllWindows()

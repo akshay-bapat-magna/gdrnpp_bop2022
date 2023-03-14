@@ -1,3 +1,9 @@
 yolox/gdrn to resume training: add flag --resume in relevant train.sh file.
 
 - load_state_dict_from_hf error: reinstall timm
+
+tried to install egl_renderer on vm bt did not work. Replaced folder with built one from Lambda.
+set env variables LD_LIBRARY_PATH and CUDA_HOME to /usr/local(or lib)/cuda/bin and /usr/local/cuda
+
+Command to run two training sessions back to back:
+./core/gdrn_modeling/train_gdrn.sh ./configs/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch.py 0,1 && mv ./output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch ./output/gdrn/doorlatch/c && ./core/gdrn_modeling/train_gdrn.sh ./configs/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch.py 0,1

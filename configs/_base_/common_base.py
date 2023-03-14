@@ -88,7 +88,7 @@ DATASETS = dict(
     DET_THR_TRAIN=0.0,
     # load test bboxes -----------------------
     DET_FILES_TEST=(),
-    DET_TOPK_PER_OBJ=1,
+    DET_TOPK_PER_OBJ=10,
     DET_TOPK_PER_IM=30,  # TODO: implement this
     DET_THR=0.0,  # filter detections
     # load initial poses
@@ -152,7 +152,7 @@ SOLVER = dict(
     # checkpoint ------------------------------------------------
     CHECKPOINT_PERIOD=5,
     CHECKPOINT_BY_EPOCH=True,
-    MAX_TO_KEEP=5,
+    MAX_TO_KEEP=10,
     # Gradient clipping -----------------------------------------
     CLIP_GRADIENTS=dict(
         ENABLED=False,

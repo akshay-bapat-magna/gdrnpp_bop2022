@@ -9,7 +9,7 @@ foldername = "test_pbr"
 with open(f"./datasets/BOP_DATASETS/{key}/{foldername}/000000/scene_gt.json", 'r') as f:
 	gts = json.load(f)
 
-with open(f"./datasets/BOP_DATASETS/{key}/test_targets_ablation.json", "w") as f:
+with open(f"./datasets/BOP_DATASETS/{key}/test_targets_ablation_09.json", "w") as f:
 	d = []
 	for scene in tqdm(range(0,1)):
 		for img in range(1000):

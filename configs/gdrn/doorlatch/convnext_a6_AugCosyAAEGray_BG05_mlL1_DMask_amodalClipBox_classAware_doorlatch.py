@@ -34,12 +34,12 @@ INPUT = dict(
 )
 
 SOLVER = dict(
-    IMS_PER_BATCH=16,
+    IMS_PER_BATCH=128,
     TOTAL_EPOCHS=80,  # 30
     LR_SCHEDULER_NAME="flat_and_anneal",
     ANNEAL_METHOD="cosine",  # "cosine"
     ANNEAL_POINT=0.72,
-    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", lr=5e-3, weight_decay=0.01),
+    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", lr=5e-5, weight_decay=0.01),
     WEIGHT_DECAY=0.0,
     WARMUP_FACTOR=0.001,
     WARMUP_ITERS=1000,
@@ -126,7 +126,7 @@ MODEL = dict(
             CENTROID_LW=1.0,
             # z loss -----------
             Z_LOSS_TYPE="L1",
-            Z_LW=5.0,
+            Z_LW=1.0,
         ),
     ),
 )

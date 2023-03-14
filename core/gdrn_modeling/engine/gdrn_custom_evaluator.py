@@ -778,12 +778,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
                             
                     assert ad_error == ad_min
-                    if r_error > 25:
-                        print(r_error)
-                        print(R_pred)
-                        print(R_gt)
-                        print(file_name)
-                        breakpoint()
+                    # if r_error > 25:
+                    #     print(r_error)
+                    #     print(R_pred)
+                    #     print(R_gt)
+                    #     print(file_name)
+                    #     breakpoint()
                     #########
                     errors[obj_name]["ad"].append(ad_error)
                     errors[obj_name]["re (deg)"].append(r_error)
@@ -818,8 +818,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         logging.getLogger('matplotlib.ticker').disabled = True
 
         # summarize
-        draw_histogram(errors[obj_name]["te (m)"], "trans")
-        draw_histogram(errors[obj_name]["re (deg)"], "rot")
+        draw_histogram(errors[obj_name]["te (m)"], "trans", True)
+        draw_histogram(errors[obj_name]["re (deg)"], "rot", True)
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]
@@ -940,7 +940,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         savefile_png = osp.join(self._output_dir, 'recall_vs_thresh.png')
         # pickle.dump(fig, open(savefile_pickle, 'wb'))
         plt.savefig(savefile_png)
-        # plt.show()
+        plt.show()
         
         return {}
 
