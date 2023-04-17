@@ -8,6 +8,7 @@ import sys
 from setproctitle import setproctitle
 import torch
 import torch.distributed as dist
+from bayes_opt import BayesianOptimization
 
 # from torch.nn.parallel import DistributedDataParallel
 
@@ -51,10 +52,9 @@ from core.gdrn_modeling.models import (
 logger = logging.getLogger("detectron2")
 
 
-def setup(args, lr=False):
+def setup(args):
     """Create configs and perform basic setups."""
     cfg = Config.fromfile(args.config_file)
-
     if args.opts is not None:
         cfg.merge_from_dict(args.opts)
     ############## pre-process some cfg options ######################
@@ -92,10 +92,6 @@ def setup(args, lr=False):
         accumulate_iter = max(round(bs_ref / cfg.SOLVER.IMS_PER_BATCH), 1)  # accumulate loss before optimizing
     else:
         accumulate_iter = 1
-    
-    if lr:
-        cfg.SOLVER.OPTIMIZER_CFG["lr"] = cfg.SOLVER.LR
-        
     # NOTE: get optimizer from string cfg dict
     if cfg.SOLVER.OPTIMIZER_CFG != "":
         if isinstance(cfg.SOLVER.OPTIMIZER_CFG, str):
@@ -196,19 +192,66 @@ class Lite(GDRN_Lite):
 
 @loguru_logger.catch
 def main(args):
-    cfg = setup(args, True)
-    cfg.SOLVER.OPTIMIZER_CFG["betas"] = (cfg.SOLVER.MOMENTUM, 0.999)
-    # cfg.SOLVER.OPTIMIZER_CFG["lr"] = cfg.SOLVER.LR
-    logger.info(f"start to train with {args.num_machines} nodes and {args.num_gpus} GPUs")
-    if args.num_gpus > 1 and args.strategy is None:
-        args.strategy = "ddp"
-    Lite(
-        accelerator="gpu",
-        strategy=args.strategy,
-        devices=args.num_gpus,
-        num_nodes=args.num_machines,
-        precision=16 if cfg.SOLVER.AMP.ENABLED else 32,
-    ).run(args, cfg)
+    cfg = setup(args)
+
+    pbounds = {
+        'lr_r': (4, 7),
+        'bs_r': (3, 7),
+        'm': (0.85, 0.95)
+    }
+
+    def train_loop(lr_r, bs_r, m):
+        cfg.SOLVER.OPTIMIZER_CFG["lr"] = float(10**(-lr_r))
+        cfg.SOLVER.OPTIMIZER_CFG["betas"] = (float(m), 0.999)
+        bs = int(2**bs_r)
+        if bs % 2 > 0:
+            bs += 1
+        cfg.SOLVER.IMS_PER_BATCH = bs
+        cfg.SOLVER.TOTAL_EPOCHS = 1
+
+        logger.info(f"start to train with {args.num_machines} nodes and {args.num_gpus} GPUs")
+        logger.info(f"Starting Bayesian Optimization Iteration with LR_r: {lr_r}, BS_r:{bs_r}, momentum: {m}")
+        if args.num_gpus > 1 and args.strategy is None:
+            args.strategy = "ddp"
+        Lite(
+            accelerator="gpu",
+            strategy=args.strategy,
+            devices=args.num_gpus,
+            num_nodes=args.num_machines,
+            precision=16 if cfg.SOLVER.AMP.ENABLED else 32,
+        ).run(args, cfg)
+
+        output_file = "output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_final/" + \
+        "doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch-test_doorlatch_bop_test_pbr_tab.txt"
+        run_info = f"LR: {10**(-lr_r)}, BS: {bs}, momentum: {m}"
+        
+        with open(output_file, 'r') as f:
+            for line in f.readlines():
+                l = line.split()
+                if l[0] == 'ad_5':
+                    retval = float(l[2])
+        
+        with open("bayesian_opt_log.txt", "a") as f:
+            f.write(f"\n{run_info} --- ADD5: {retval}")
+        
+        return retval
+
+    opt = BayesianOptimization(
+        f=train_loop,
+        pbounds=pbounds,
+    )
+
+    opt.maximize(
+        init_points=5,
+        n_iter=10,
+    )
+
+    for i, res in enumerate(opt.res):
+        print(f"Iteration {i}: \n\t{res}")
+
+    print("\n\nMaximized:\n", opt.max)
+
+            
 
 
 if __name__ == "__main__":

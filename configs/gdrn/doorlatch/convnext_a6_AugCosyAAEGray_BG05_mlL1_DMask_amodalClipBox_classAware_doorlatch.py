@@ -36,13 +36,15 @@ INPUT = dict(
 SOLVER = dict(
     IMS_PER_BATCH=128,
     TOTAL_EPOCHS=80,  # 30
-    LR_SCHEDULER_NAME="flat_and_anneal",
+    LR_SCHEDULER_NAME="flat_and_anneal",  # "flat_and_anneal"
     ANNEAL_METHOD="cosine",  # "cosine"
     ANNEAL_POINT=0.72,
-    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", lr=5e-5, weight_decay=0.01),
+    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", betas=(0.95, 0.999), lr=5e-5, weight_decay=0.01),
+    MOMENTUM=0.9,
+    LR=5e-5,
     WEIGHT_DECAY=0.0,
     WARMUP_FACTOR=0.001,
-    WARMUP_ITERS=1000,
+    WARMUP_ITERS=100,
 )
 
 DATASETS = dict(
@@ -53,13 +55,13 @@ DATASETS = dict(
     TEST=("doorlatch_bop_test_pbr",),
     # AP        AP50    AP75    AR      inf.time
     DET_FILES_TEST=("datasets/BOP_DATASETS/doorlatch/test/test_bboxes/yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json",),
-    DET_TOPK_PER_OBJ=20,
+    DET_TOPK_PER_OBJ=30,
 )
 
 DATALOADER = dict(
     # Number of data loading threads
-    NUM_WORKERS=8,
-    FILTER_VISIB_THR=0.3,
+    NUM_WORKERS=16,
+    FILTER_VISIB_THR=0.6,
 )
 
 MODEL = dict(

@@ -611,12 +611,15 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 quat = anno["quat"]
                 R = quat2mat(quat)
                 trans = anno["trans"]
+                visib = anno['visib_fract']
+                bbox_visib_area = (anno['bbox'][2]*anno['bbox'][3])/(anno['bbox_obj'][2]*anno['bbox_obj'][3])
+                visib = min(visib, bbox_visib_area)
                 obj_name = self._metadata.objs[anno["category_id"]]
                 if obj_name not in self.gts:
                     self.gts[obj_name] = OrderedDict()
                 if file_name not in self.gts[obj_name]:
                     self.gts[obj_name][file_name] = []
-                self.gts[obj_name][file_name].append({"R": R, "t": trans, "K": K})
+                self.gts[obj_name][file_name].append({"R": R, "t": trans, "K": K, "visib": visib})
 
     def reorganize_preds(self, _predictions):
         # re-organize list of dicts to pred_dict = preds[obj_name][file_name]
@@ -670,6 +673,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         #     print(v)
         #     breakpoint()
 
+        visib_thresh = 0.8
         # Loop for each object
         for obj_name in self.gts:
             if obj_name not in self._predictions:
@@ -689,8 +693,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             obj_gts = self.gts[obj_name]
             obj_preds = self._predictions[obj_name]
 
+            records = {}
+
             # Loop for each image
             for file_name, gt_anno in obj_gts.items():
+                records[file_name] = []
+
                 if file_name not in obj_preds:  # no pred found
                     for metric_name in metric_names:
                         recalls[obj_name][metric_name].append(0.0)
@@ -698,8 +706,16 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
                 # Loop for each GT
                 for i in range(len(gt_anno)):
+
+                    # If object is not visible, skip GT
+                    if gt_anno[i]["visib"] < visib_thresh:
+                        continue
+
+                    temp_dict = {}
                     R_gt = gt_anno[i]["R"]
                     t_gt = gt_anno[i]["t"]
+                    temp_dict["R"] = R_gt
+                    temp_dict["t"] = t_gt
                     ad_min = np.inf
 
                     # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
@@ -778,6 +794,9 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
                             
                     assert ad_error == ad_min
+                    temp_dict["ADD"] = ad_error
+                    temp_dict["RE"] = r_error
+                    temp_dict["TE"] = t_error
                     # if r_error > 25:
                     #     print(r_error)
                     #     print(R_pred)
@@ -810,6 +829,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
                     recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
                     recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+
+                    records[file_name].append(temp_dict)
         
         # Prevents matplotlib and PIL from spamming stdout with debug messages
         logging.getLogger('matplotlib.font_manager').disabled = True
@@ -818,8 +839,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         logging.getLogger('matplotlib.ticker').disabled = True
 
         # summarize
-        draw_histogram(errors[obj_name]["te (m)"], "trans", True)
-        draw_histogram(errors[obj_name]["re (deg)"], "rot", True)
+        # draw_histogram(errors[obj_name]["te (m)"], "trans", False)
+        # draw_histogram(errors[obj_name]["re (deg)"], "rot", False)
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]
@@ -940,7 +961,10 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         savefile_png = osp.join(self._output_dir, 'recall_vs_thresh.png')
         # pickle.dump(fig, open(savefile_pickle, 'wb'))
         plt.savefig(savefile_png)
-        plt.show()
+        # plt.show()
+
+        with open("gts_and_errors.pkl", "wb") as fout:
+            pickle.dump(records, fout)
         
         return {}
 

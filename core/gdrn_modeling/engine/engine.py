@@ -216,7 +216,8 @@ class GDRN_Lite(LightningLite):
         bs_ref = cfg.SOLVER.get("REFERENCE_BS", 64)  # nominal batch size =========================
         accumulate_iter = max(round(bs_ref / cfg.SOLVER.IMS_PER_BATCH), 1)  # accumulate loss before optimizing
         # NOTE: update lr every accumulate_iter
-        scheduler = solver_utils.build_lr_scheduler(cfg, optimizer, total_iters=max_iter // accumulate_iter)
+        num_cycles = 1
+        scheduler = solver_utils.build_lr_scheduler(cfg, optimizer, total_iters=max_iter // accumulate_iter // num_cycles)
 
         # resume or load model ===================================
         extra_ckpt_dict = dict(

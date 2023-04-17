@@ -58,7 +58,7 @@ if __name__ == "__main__":
 		# boxes2, scores2, cls_ids2 = getData(res_serialized2, imgid)
 		class_names = ["Dummy", "SB", "MB", "LB", "BSC", "SP"]
 		# class_names = [str(i) for i in range(31)]
-		thresh = 0.6
+		thresh = 0.8
 
 		img1 = vis(img, boxes, scores, cls_ids, thresh, class_names)
 		# img2 = vis(img.copy(), boxes2, scores2, cls_ids2, thresh, class_names)
@@ -69,4 +69,4 @@ if __name__ == "__main__":
 			cv2.destroyAllWindows()
 			break
 		cv2.destroyAllWindows()
-		# cv2.imwrite(f"detection_{imgid}.jpg", img1)
+		cv2.imwrite(f"detection_{imgid}.jpg", img1)

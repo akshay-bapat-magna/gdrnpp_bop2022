@@ -489,6 +489,16 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         ).transpose(2, 0, 1)
 
         roi_img = self.normalize_image(cfg, roi_img)
+
+        segmented_input = False
+        if segmented_input:
+            assert mask.shape == image.shape
+            # Check roi_mask variables, might have something useful
+            # roi_mask = crop_resize_by_warp_affine(
+        #     image, bbox_center, scale, input_res, interpolation=cv2.INTER_LINEAR
+        # ).transpose(2, 0, 1)
+            # if roi_mask[i,j] == 0 seg_img[i,j] = white else = roi_img[i,j]
+
         # print("\n\n\n\n\n\n", roi_img.shape)
         # img = copy.deepcopy(roi_img)
         # cv2.imshow('', img.transpose(1,2,0))

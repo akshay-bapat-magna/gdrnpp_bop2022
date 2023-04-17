@@ -155,7 +155,7 @@ class DOORLATCH_BOP_TEST_Dataset(object):
             gt_info_dict = gt_info_dicts[scene_id]
             cam_dict = cam_dicts[scene_id]
 
-            rgb_path = osp.join(scene_root, "rgb/{:06d}.jpg").format(int_im_id)
+            rgb_path = osp.join(scene_root, f"rgb/{int_im_id:06d}.{cfg['TEST']['IM_FORMAT']}")
             assert osp.exists(rgb_path), rgb_path
 
             depth_path = osp.join(scene_root, "depth/{:06d}.png".format(int_im_id))

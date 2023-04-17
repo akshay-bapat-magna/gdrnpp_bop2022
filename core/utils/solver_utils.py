@@ -6,7 +6,7 @@ import torch
 
 from detectron2.config import CfgNode
 
-from lib.torch_utils.solver.lr_scheduler import flat_and_anneal_lr_scheduler
+from lib.torch_utils.solver.lr_scheduler import flat_and_anneal_lr_scheduler, trapezoid_lr_scheduler
 from lib.torch_utils.solver.optimize import _get_optimizer
 from lib.torch_utils.solver.grad_clip_d2 import maybe_add_gradient_clipping
 from mmcv.runner.optimizer import (
@@ -153,6 +153,23 @@ def build_lr_scheduler(
             poly_power=cfg.SOLVER.get("POLY_POWER", 1.0),
             step_gamma=cfg.SOLVER.GAMMA,  # default 0.1
             return_function=return_function,
+            cyclic=False
+        )
+    
+    elif name.lower() == "trapezoid":
+        return trapezoid_lr_scheduler(
+            optimizer,
+            total_iters=total_iters,  # NOTE: TOTAL_EPOCHS * len(train_loader)
+            warmup_factor=cfg.SOLVER.WARMUP_FACTOR,
+            warmup_iters=cfg.SOLVER.WARMUP_ITERS,
+            warmup_method=cfg.SOLVER.WARMUP_METHOD,  # default "linear"
+            rampup_time=0.4,
+            peak_time=0.1,
+            rampdown_time=0.4,
+            valley_time=0.1,
+            valley_lr_factor=0.01,
+            return_function=return_function,
+            cyclic=True
         )
 
     # attempt to use detectron2's schedulers

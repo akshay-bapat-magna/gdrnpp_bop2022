@@ -17,4 +17,4 @@ MKL_NUM_THREADS=1
 # rm -r .cache/
 PYTHONPATH="$this_dir/../..":$PYTHONPATH \
 CUDA_VISIBLE_DEVICES=$2 python $this_dir/main_gdrn.py \
-     --resume --config-file $CFG --num-gpus $NGPU  ${@:3}
+     --config-file $CFG --num-gpus $NGPU  ${@:3}
