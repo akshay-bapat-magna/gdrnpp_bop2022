@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 # Read data from log
 log_file = "bayesian_opt_log.txt"
-run_date = "2023-03-29"
+run_date = "2023-04-04"
 lr = []
 bs = []
 mmt = []
@@ -42,5 +42,5 @@ plot = ax.scatter(lr[:exp], bs[:exp], mmt[:exp], c=add[:exp], marker='o', cmap='
 plot = ax.scatter(lr[exp:], bs[exp:], mmt[exp:], c=add[exp:], marker='x', cmap='winter')
 opt = np.argmax(add)
 plot = ax.scatter(lr[opt], bs[opt], mmt[opt], c=add[opt], marker='^', cmap='winter', linewidths=3)
-fig.colorbar(plot, label="ADD")
+fig.colorbar(plot, label="ADD5 Recall")
 plt.show()

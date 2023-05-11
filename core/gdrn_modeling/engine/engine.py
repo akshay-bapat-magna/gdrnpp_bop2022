@@ -2,6 +2,7 @@ import logging
 import os
 import os.path as osp
 import torch
+from torchinfo import summary
 
 # from torch.cuda.amp import autocast, GradScaler
 import mmcv
@@ -166,7 +167,7 @@ class GDRN_Lite(LightningLite):
 
     def do_train(self, cfg, args, model, optimizer, renderer=None, resume=False):
         model.train()
-
+        
         # some basic settings =========================
         dataset_meta = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
         data_ref = ref.__dict__[dataset_meta.ref_key]
@@ -405,6 +406,7 @@ class GDRN_Lite(LightningLite):
                     if hasattr(optimizer, "consolidate_state_dict"):  # for ddp_sharded
                         optimizer.consolidate_state_dict()
                 periodic_checkpointer.step(iteration, epoch=epoch)
+                
 
 
 def vis_train_data(data, obj_names, cfg):

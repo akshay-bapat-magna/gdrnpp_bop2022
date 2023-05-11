@@ -9,7 +9,7 @@ import time
 import collections.abc
 from collections import OrderedDict
 import itertools
-
+import json
 import cv2
 import mmcv
 import numpy as np
@@ -656,6 +656,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
         recalls = OrderedDict()
         errors = OrderedDict()
+        plot_z = []
         self.get_gts()
 
         error_names = ["ad", "re (deg)", "te (m)", "proj"]
@@ -694,10 +695,12 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
             obj_preds = self._predictions[obj_name]
 
             records = {}
+            corr = {}
 
             # Loop for each image
-            for file_name, gt_anno in obj_gts.items():
+            for file_name, gt_anno in tqdm(obj_gts.items()):
                 records[file_name] = []
+                corr[file_name] = []
 
                 if file_name not in obj_preds:  # no pred found
                     for metric_name in metric_names:
@@ -717,12 +720,17 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     temp_dict["R"] = R_gt
                     temp_dict["t"] = t_gt
                     ad_min = np.inf
+                    ad_error = np.inf
+                    z_gt = 0
+                    correspondence = None
 
                     # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
                         # print(f"\n\nGT #{i}\n{R_gt}\n{t_gt}\n")
 
                     # Loop for each prediction
                     for j in range(len(obj_preds[file_name])):
+                        # if obj_preds[file_name][j]['score'] < 0.8:
+                        #     continue
                         R_pred = obj_preds[file_name][j]["R"]
                         t_pred = obj_preds[file_name][j]["t"]
                         # R_pred = gt_anno[i]["R"].copy()
@@ -788,6 +796,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                             )
                         
                             t_error = te(t_pred, t_gt)
+                            z_gt = t_gt[2]
+                            correspondence = (i, j)
 
                             # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
                             #     print(f"\n\nPred #{j}\n{R_pred}\n{t_pred}\n\nAD: {ad_error}\nTE: {t_error}\nRE: {r_error}\n")
@@ -808,6 +818,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     errors[obj_name]["re (deg)"].append(r_error)
                     errors[obj_name]["te (m)"].append(t_error)
                     errors[obj_name]["proj"].append(proj_2d_error)
+                    plot_z.append(z_gt)
                     ############
                     recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
                     recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
@@ -831,7 +842,24 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
 
                     records[file_name].append(temp_dict)
+                    if correspondence is not None:
+                        corr[file_name].append({
+                            "GT_id": correspondence[0],
+                            "Pred_id": correspondence[1],
+                            "ADD": ad_error,
+                            "RE": r_error,
+                            "TE": t_error,
+                            "Conf": obj_preds[file_name][correspondence[1]]['score'],
+                            "R_gt": R_gt,
+                            "T_gt": t_gt,
+                            "R_pred": obj_preds[file_name][correspondence[1]]['R'],
+                            "t_pred": obj_preds[file_name][correspondence[1]]['t'],
+                            "R_unassigned": [obj_preds[file_name][idx]['R'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]],
+                            "t_unassigned": [obj_preds[file_name][idx]['t'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]]
+                        })
         
+        np.save("tracker.npy", corr)
+
         # Prevents matplotlib and PIL from spamming stdout with debug messages
         logging.getLogger('matplotlib.font_manager').disabled = True
         logging.getLogger('matplotlib.pyplot').disabled = True
@@ -839,8 +867,10 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         logging.getLogger('matplotlib.ticker').disabled = True
 
         # summarize
-        # draw_histogram(errors[obj_name]["te (m)"], "trans", False)
-        # draw_histogram(errors[obj_name]["re (deg)"], "rot", False)
+        draw_histogram(errors[obj_name]["te (m)"], "trans", False)
+        draw_histogram(errors[obj_name]["re (deg)"], "rot", False)
+        # plt.scatter(errors[obj_name]["ad"][:500], plot_z[:500], marker='.')
+        # plt.show()
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]

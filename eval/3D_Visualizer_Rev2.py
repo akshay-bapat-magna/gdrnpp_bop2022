@@ -5,7 +5,6 @@ Created on Wed Feb 22 12:59:41 2023
 @author: bilahaid
 """
 
-import argparse, re
 import numpy as np
 import pickle
 import json
@@ -80,7 +79,8 @@ gt_file = '../datasets/BOP_DATASETS/doorlatch/test_pbr/000000/scene_gt.json'
 info_file = '../datasets/BOP_DATASETS/doorlatch/test_pbr/000000/scene_gt_info.json'
 errors_file = '../gts_and_errors.pkl'
 # pred_file = '../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_0147239/doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch-test_doorlatch_bop_test_pbr_preds.pkl'
-pred_file = "../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_/doorlatch_bop_test_pbr/preds.pkl"
+pred_file = "../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_final/doorlatch_bop_test_pbr/preds.pkl"
+corr_file = "../tracker.npy"
 
 with open(pred_file, 'rb') as f:
     preds = pickle.load(f)
@@ -94,9 +94,12 @@ with open(info_file, 'r') as f:
 with open(errors_file, 'rb') as f:
     errors = pickle.load(f)
 
+with open(corr_file, 'rb') as f:
+    corr = np.load(f, allow_pickle=True)
+
 d = preds['3']
 imgid = 0
-visib_thresh = 0.3
+visib_thresh = 0.8
 
 for imfile, v in d.items():
 
@@ -121,7 +124,7 @@ for imfile, v in d.items():
         mesh.paint_uniform_color([0, 0, 1])
         
         # copy original mesh and apply prediction transformation
-        mesh_pred = copy.deepcopy(mesh).transform(T_pred)
+        mesh_pred_un = copy.deepcopy(mesh).transform(T_pred)
         
         # append prediction geometry
         # meshes_predictions.append(mesh_pred)
@@ -143,7 +146,7 @@ for imfile, v in d.items():
         # append gt geometry
         # meshes_predictions.append(mesh_gt)
         
-        All_meshes.append(mesh_pred)
+        # All_meshes.append(mesh_pred_un)
         # if infos[str(imgid)][i_pred]["visib_fract"] > visib_thresh:
         #     All_meshes.append(mesh_gt)
 
@@ -155,10 +158,27 @@ for imfile, v in d.items():
         T_gt = np.vstack((np.hstack((rot_gt, trans_gt[:, None])), [0, 0, 0 ,1]))
         mesh_gt = copy.deepcopy(mesh).transform(T_gt)
         All_meshes.append(mesh_gt)
-        text_pos = errors[imfile][i]['t'].copy()
-        text_pos *= 1000
-        text_pos[2] += 20
-        All_meshes.append(text_3d(f"ADD: {errors[imfile][i]['ADD']*1000:.2f}, RE: {errors[imfile][i]['RE']:.2f}, TE: {errors[imfile][i]['TE']*1000:.2f}", text_pos, density=2, font_size=800))
+    #     text_pos = errors[imfile][i]['t'].copy()
+    #     text_pos *= 1000
+    #     text_pos[2] += 20
+    #     All_meshes.append(text_3d(f"ADD: {errors[imfile][i]['ADD']*1000:.2f}, RE: {errors[imfile][i]['RE']:.2f}, TE: {errors[imfile][i]['TE']*1000:.2f}", text_pos, density=2, font_size=800))
+
+    # GT and Pred correspondences
+    for corr_dict in corr.item()[imfile]:
+        # breakpoint()
+        mesh.paint_uniform_color([0, 1, 0])
+        rot_gt = corr_dict["R_gt"]
+        trans_gt = corr_dict["T_gt"]*1000
+        T_gt = np.vstack((np.hstack((rot_gt, trans_gt[:, None])), [0, 0, 0 ,1]))
+        mesh_gt = copy.deepcopy(mesh).transform(T_gt)
+        All_meshes.append(mesh_gt)
+
+        mesh.paint_uniform_color([1.0, 0.67, 0])
+        rot_pred = corr_dict["R_pred"]
+        trans_pred = corr_dict["t_pred"]*1000
+        T_pred = np.vstack((np.hstack((rot_pred, trans_pred[:, None])), [0, 0, 0 ,1]))
+        mesh_pred = copy.deepcopy(mesh).transform(T_pred)
+        All_meshes.append(mesh_pred)
         
     imgid = imgid + 1
 

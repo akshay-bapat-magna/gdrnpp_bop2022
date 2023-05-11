@@ -14,6 +14,7 @@ import mmcv
 import numpy as np
 import ref
 import torch
+from torchinfo import summary
 from torch.cuda.amp import autocast
 from transforms3d.quaternions import quat2mat
 
@@ -747,6 +748,23 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
                     roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
                     roi_extents=batch.get("roi_extent", None),
                 )
+            
+            args = dict(
+                roi_classes=batch["roi_cls"],
+                roi_cams=batch["roi_cam"],
+                roi_whs=batch["roi_wh"],
+                roi_centers=batch["roi_center"],
+                resize_ratios=batch["resize_ratio"],
+                roi_coord_2d=batch.get("roi_coord_2d", None),
+                roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
+                roi_extents=batch.get("roi_extent", None),
+            )
+
+            # sm = summary(model, (1,3,256,256), **args)
+            # with open("summary.txt", 'w') as f:
+            #     f.write(str(sm))
+            # breakpoint()
+
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             cur_compute_time = time.perf_counter() - start_compute_time
