@@ -359,7 +359,7 @@ class GDRN_DatasetFromList(Base_DatasetFromList):
         # currently only replace bg for train ###############################
         # some synthetic data already has bg, img_type should be real or something else but not syn
         img_type = dataset_dict.get("img_type", "real")
-        do_replace_bg = False
+        do_replace_bg = True
         if img_type == "syn":
             log_first_n(logging.WARNING, "replace bg", n=10)
             do_replace_bg = True
@@ -560,7 +560,7 @@ class GDRN_DatasetFromList(Base_DatasetFromList):
         ## roi_xyz ----------------------------------------------------
         roi_xyz = crop_resize_by_warp_affine(xyz, bbox_center, scale, out_res, interpolation=mask_xyz_interp)
 
-        # region label
+        #regionlabel
         if g_head_cfg.NUM_REGIONS > 1:
             fps_points = self._get_fps_points(dataset_name)[roi_cls]
             roi_region = xyz_to_region(roi_xyz, fps_points)  # HW
@@ -699,7 +699,7 @@ class GDRN_DatasetFromList(Base_DatasetFromList):
             # TODO: maybe need to resize
             depth = depth.reshape(im_H, im_W, depth_ch).astype("float32")
 
-        input_res = net_cfg.INPUT_RES
+        input_res = net_cfg.INPUT_RES   # 256
         out_res = net_cfg.OUTPUT_RES
 
         # CHW -> HWC
@@ -760,7 +760,7 @@ class GDRN_DatasetFromList(Base_DatasetFromList):
             bbox_center = np.array([0.5 * (x1 + x2), 0.5 * (y1 + y2)])
             bw = max(x2 - x1, 1)
             bh = max(y2 - y1, 1)
-            scale = max(bh, bw) * cfg.INPUT.DZI_PAD_SCALE
+            scale = max(bh, bw) * cfg.INPUT.DZI_PAD_SCALE   # 1.5
             scale = min(scale, max(im_H, im_W)) * 1.0
 
             roi_infos["bbox_center"].append(bbox_center.astype("float32"))

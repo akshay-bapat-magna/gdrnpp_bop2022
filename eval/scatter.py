@@ -2,16 +2,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-filename = "../tracker_11_finetune.npy"
+filename = "../tracker_11_hungarian.npy"
 corr = np.load(filename, allow_pickle=True)
 ad = []
 re = []
 te = []
 conf = []
 fig, axs = plt.subplots(1, 3)
+count = 0
 for imfile, corr_list in corr.item().items():
-    
+    count += 1
+    print(imfile, len(corr_list))
     for corr_dict in corr_list:
+        
         if corr_dict["RE"] < 25000:
             ad.append(corr_dict["ADD"])
             re.append(corr_dict["RE"])
@@ -26,5 +29,5 @@ axs[1].set_title('RE')
 
 axs[2].scatter(te, conf)
 axs[2].set_title('TE')
-print(len(ad))
+print(len(ad), count)
 plt.show()

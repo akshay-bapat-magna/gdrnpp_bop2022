@@ -12,13 +12,13 @@ model_path = "datasets/BOP_DATASETS/doorlatch/models_eval/obj_000003.ply"
 model_pts = inout.load_ply(model_path)
 model_dia = 30.845675415790865
 
-with open("eval/gts_10.json", 'r') as f:
+with open("eval/gts_1.json", 'r') as f:
     gts = json.load(f)
 
-with open("eval/preds_10.json", 'r') as f:
+with open("eval/preds_1.json", 'r') as f:
     preds = json.load(f)
 
-thresh = 0.02*model_dia
+thresh = 0.1*model_dia
 add_sum = 0
 add_count = 0
 add_all = []

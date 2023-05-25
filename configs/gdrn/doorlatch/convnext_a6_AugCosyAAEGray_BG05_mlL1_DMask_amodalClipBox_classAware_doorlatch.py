@@ -6,7 +6,7 @@ OUTPUT_DIR = "output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_a
 INPUT = dict(
     DZI_PAD_SCALE=1.5,
     TRUNCATE_FG=True,
-    CHANGE_BG_PROB=0.5,
+    CHANGE_BG_PROB=0.8,
     COLOR_AUG_PROB=0.8,
     IMG_AUG_RESIZE=False,
     COLOR_AUG_TYPE="code",
@@ -35,16 +35,19 @@ INPUT = dict(
 
 SOLVER = dict(
     IMS_PER_BATCH=100,
-    TOTAL_EPOCHS=40,  # 30
-    LR_SCHEDULER_NAME="flat_and_anneal",  # "flat_and_anneal"
+    TOTAL_EPOCHS=400,  # 30
+    LR_SCHEDULER_NAME="ReduceOnPlateau",  # "flat_and_anneal"
     ANNEAL_METHOD="cosine",  # "cosine"
     ANNEAL_POINT=0.1,
-    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", betas=(0.888, 0.999), lr=5e-6, weight_decay=0.01),
+    OPTIMIZER_CFG=dict(_delete_=True, type="Ranger", betas=(0.888, 0.999), lr=5e-4, weight_decay=0.01),
     MOMENTUM=0.888,
-    LR=5e-6,
+    LR=5e-4,
     WEIGHT_DECAY=0.0,
     WARMUP_FACTOR=0.001,
     WARMUP_ITERS=1000,
+    CHECKPOINT_PERIOD=5,
+    CHECKPOINT_BY_EPOCH=True,
+    MAX_TO_KEEP=40,
 )
 
 DATASETS = dict(
@@ -55,7 +58,7 @@ DATASETS = dict(
     TEST=("doorlatch_bop_test_pbr",),
     # AP        AP50    AP75    AR      inf.time
     DET_FILES_TEST=("datasets/BOP_DATASETS/doorlatch/test/test_bboxes/yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json",),
-    DET_TOPK_PER_OBJ=20,
+    DET_TOPK_PER_OBJ=30,
 )
 
 DATALOADER = dict(
@@ -148,6 +151,7 @@ VAL = dict(
     EVAL_PRINT_ONLY=False,  # if the scores/recalls have been saved
     EVAL_PRECISION=False,  # use precision or recall
     USE_BOP=False,  # whether to use bop toolkit
+    USE_SEG=True,   # Whether to use segmented masks along with detections
 )
 
 TEST = dict(EVAL_PERIOD=0, VIS=True, TEST_BBOX_TYPE="est")  # gt | est

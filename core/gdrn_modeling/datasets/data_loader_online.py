@@ -351,6 +351,8 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         # some synthetic data already has bg, img_type should be real or something else but not syn
         img_type = dataset_dict.get("img_type", "real")
         do_replace_bg = False
+        if np.random.rand() < cfg.INPUT.CHANGE_BG_PROB:
+            do_replace_bg = True
         # if img_type == "syn":
         #     log_first_n(logging.WARNING, "replace bg", n=10)
         #     do_replace_bg = True
@@ -376,6 +378,13 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
                 )
         else:
             mask_trunc = None
+        
+        # cv2.imshow('mask', mask_trunc)
+        # cv2.imshow('img', image)
+        # if cv2.waitKey(0) & 0xFF == ord('q'):
+        #     cv2.destroyAllWindows()
+        #     breakpoint()
+        # cv2.destroyAllWindows()
 
         # NOTE: maybe add or change color augment here ===================================
         if self.color_aug_prob > 0 and self.color_augmentor is not None:

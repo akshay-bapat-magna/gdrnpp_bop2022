@@ -345,7 +345,10 @@ class GDRN_Lite(LightningLite):
                     if ema is not None:
                         ema.update(model)
                     storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
-                    scheduler.step()
+                    if cfg.SOLVER.LR_SCHEDULER_NAME == "ReduceOnPlateau":
+                        scheduler.step(losses)
+                    else:
+                        scheduler.step()
 
                 if (
                     cfg.TEST.EVAL_PERIOD > 0

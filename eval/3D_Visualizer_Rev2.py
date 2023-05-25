@@ -80,7 +80,7 @@ info_file = '../datasets/BOP_DATASETS/doorlatch/test_pbr/000000/scene_gt_info.js
 errors_file = '../gts_and_errors.pkl'
 # pred_file = '../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_0147239/doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch-test_doorlatch_bop_test_pbr_preds.pkl'
 pred_file = "../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_final/doorlatch_bop_test_pbr/preds.pkl"
-corr_file = "../tracker.npy"
+corr_file = "../tracker_11_hungarian.npy"
 
 with open(pred_file, 'rb') as f:
     preds = pickle.load(f)

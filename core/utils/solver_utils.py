@@ -196,6 +196,11 @@ def build_lr_scheduler(
     elif name == "WarmupCosineLR":
         # TODO: we can use the composite scheduler to construct warmup_flat_cosine schedule
         sched = CosineParamScheduler(1, 0)
+    
+    elif name == "ReduceOnPlateau":
+        iters_per_epoch = total_iters/cfg.SOLVER.TOTAL_EPOCHS
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=10*iters_per_epoch, threshold=0.05, min_lr=1e-10)
+    
     else:
         raise ValueError("Unknown LR scheduler: {}".format(name))
 

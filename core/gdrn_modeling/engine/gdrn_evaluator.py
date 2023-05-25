@@ -7,7 +7,7 @@ import logging
 import os.path as osp
 import random
 import time
-from collections import OrderedDict
+import copy
 
 import cv2
 import mmcv
@@ -29,6 +29,7 @@ from lib.pysixd.pose_error import te
 from lib.utils.mask_utils import binary_mask_to_rle
 from lib.utils.utils import dprint
 from lib.vis_utils.image import grid_show, vis_image_bboxes_cv2, vis_image_mask_cv2
+from core.utils.data_utils import crop_resize_by_warp_affine
 
 from .engine_utils import batch_data, get_out_coor, get_out_mask, batch_data_inference_roi
 from .test_utils import eval_cached_results, save_and_eval_results, to_list
@@ -668,6 +669,47 @@ class GDRN_Evaluator(DatasetEvaluator):
         return results
 
 
+def segment_out(inp, batch, cfg):
+    mask_prefix = "datasets/BOP_DATASETS/doorlatch/test/test_masks/000000/"
+    out = []
+    
+    for i, img in enumerate(inp):
+        img_name = batch['file_name'][i].split('/')[-1].split('.')[0]
+        inst_id = str(int(batch['inst_id'][i].item()))
+        mask_name = mask_prefix + img_name + "_" + inst_id + ".jpg"
+        mask = cv2.imread(mask_name)
+        bbox = batch['bbox_est'][i]
+        bbox_center = np.array([(bbox[0].item() + bbox[2].item())/2, (bbox[1].item() + bbox[3].item())/2])
+        mask_cropped = crop_resize_by_warp_affine(mask, bbox_center, batch['scale'][i].item(), \
+            cfg.MODEL.POSE_NET.INPUT_RES, interpolation=cv2.INTER_LINEAR)#.transpose(2, 0, 1)
+        
+        # print(img.shape)
+        # cv2.imshow(f"{i}", mask_cropped)
+        # img_np = np.array(torch.moveaxis(img.cpu(), 0, 2))
+        # cv2.imshow('', img_np)
+        # if cv2.waitKey(0) & 0xFF == ord('q'):
+        #     cv2.destroyAllWindows()
+        #     break
+        # cv2.destroyAllWindows()
+
+        # for i in range(mask_cropped.shape[0]):
+        #     for j in range(mask_cropped.shape[1]):
+        #         # If black pixel, turn white for contrast
+        #         if mask_cropped[i,j,0] == 0:
+        #             img[:,i,j] = 1.0
+        #         else:
+        #             print(mask_cropped[i,j,:])
+
+        mask_cropped = torch.from_numpy(mask_cropped).float().to(img.device)
+        mask_cropped /= 255
+        mask_cropped = torch.moveaxis(mask_cropped, 2, 0)
+        img = torch.mul(img, mask_cropped)
+        out.append(copy.deepcopy(img))
+    
+    out_tensor = torch.stack(out)
+    return out_tensor
+
+
 def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False):
     """Run model on the data_loader and evaluate the metrics with evaluator.
     Also benchmark the inference speed of `model.forward` accurately. The model
@@ -735,6 +777,9 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
                 inp = torch.cat([batch["roi_img"], batch["roi_depth"]], dim=1)
             else:
                 inp = batch["roi_img"]
+            if cfg.VAL.USE_SEG:
+                inp = segment_out(inp, batch, cfg)
+            # breakpoint()
 
             with autocast(enabled=amp_test):  # gdrn amp_test seems slower
                 out_dict = model(
