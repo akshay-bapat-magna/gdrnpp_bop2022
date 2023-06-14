@@ -15,6 +15,14 @@ YOLOX_outputs/
 instant_test_output
 inference_test_output
 
+configs/common.yml
+edit_model.py
+eval/3D_Visualizer_Rev2.py
+eval/gts.txt
+eval/investigate_errors.py
+eval/preds.txt
+eval/save-tfs.py
+test_bboxes.py
 
 *.ttf
 *.jpg
