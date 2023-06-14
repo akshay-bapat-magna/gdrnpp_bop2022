@@ -1,9 +1,9 @@
 TRAIN:
   USE_CACHE: True
-  NUM_SCENES: 10
+  NUM_SCENES: 2
   IM_W: 1280
   IM_H: 1280
-  IM_FORMAT: "jpg"
+  IM_FORMAT: "png"
 
 TEST:
   USE_CACHE: True

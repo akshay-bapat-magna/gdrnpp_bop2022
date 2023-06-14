@@ -10,7 +10,7 @@ from lib.pysixd import renderer
 output_folder = "convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_final"
 # output_folder = "lb_ablation_08_10k_bs16/inference_"
 # pred_file = f"../output/gdrn/doorlatch/{output_folder}/doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch_doorlatch_bop_test_pbr_preds.pkl"
-pred_file = f"../output/gdrn/doorlatch/{output_folder}/doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch-test_doorlatch_bop_test_pbr_preds.pkl"
+pred_file = f"../output/gdrn/doorlatch/{output_folder}/doorlatch_bop_test_pbr/preds.pkl"
 with open(pred_file, 'rb') as f:
     preds = pickle.load(f)
 

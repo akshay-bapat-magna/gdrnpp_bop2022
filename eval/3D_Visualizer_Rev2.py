@@ -80,7 +80,7 @@ info_file = '../datasets/BOP_DATASETS/doorlatch/test_pbr/000000/scene_gt_info.js
 errors_file = '../gts_and_errors.pkl'
 # pred_file = '../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_0147239/doorlatch_bop_test_pbr/convnext-a6-AugCosyAAEGray-BG05-mlL1-DMask-amodalClipBox-classAware-doorlatch-test_doorlatch_bop_test_pbr_preds.pkl'
 pred_file = "../output/gdrn/doorlatch/convnext_a6_AugCosyAAEGray_BG05_mlL1_DMask_amodalClipBox_classAware_doorlatch/inference_model_final/doorlatch_bop_test_pbr/preds.pkl"
-corr_file = "../tracker_11_hungarian.npy"
+corr_file = "../tracker.npy"
 
 with open(pred_file, 'rb') as f:
     preds = pickle.load(f)
@@ -151,19 +151,24 @@ for imfile, v in d.items():
         #     All_meshes.append(mesh_gt)
 
     # Ground truths
-    for i in range(len(errors[imfile])):
-        mesh.paint_uniform_color([0, 1, 0])
-        rot_gt = errors[imfile][i]['R']
-        trans_gt = errors[imfile][i]['t']*1000
-        T_gt = np.vstack((np.hstack((rot_gt, trans_gt[:, None])), [0, 0, 0 ,1]))
-        mesh_gt = copy.deepcopy(mesh).transform(T_gt)
-        All_meshes.append(mesh_gt)
+    # for i in range(len(errors[imfile])):
+    #     mesh.paint_uniform_color([0, 1, 0])
+    #     rot_gt = errors[imfile][i]['R']
+    #     trans_gt = errors[imfile][i]['t']*1000
+    #     T_gt = np.vstack((np.hstack((rot_gt, trans_gt[:, None])), [0, 0, 0 ,1]))
+    #     mesh_gt = copy.deepcopy(mesh).transform(T_gt)
+    #     All_meshes.append(mesh_gt)
+
     #     text_pos = errors[imfile][i]['t'].copy()
     #     text_pos *= 1000
     #     text_pos[2] += 20
     #     All_meshes.append(text_3d(f"ADD: {errors[imfile][i]['ADD']*1000:.2f}, RE: {errors[imfile][i]['RE']:.2f}, TE: {errors[imfile][i]['TE']*1000:.2f}", text_pos, density=2, font_size=800))
 
     # GT and Pred correspondences
+    add = 0
+    re = 0
+    te = 0
+    num_inst = len(corr.item()[imfile])
     for corr_dict in corr.item()[imfile]:
         # breakpoint()
         mesh.paint_uniform_color([0, 1, 0])
@@ -179,12 +184,19 @@ for imfile, v in d.items():
         T_pred = np.vstack((np.hstack((rot_pred, trans_pred[:, None])), [0, 0, 0 ,1]))
         mesh_pred = copy.deepcopy(mesh).transform(T_pred)
         All_meshes.append(mesh_pred)
+
+        add += corr_dict["ADD"]
+        re += corr_dict["RE"]
+        te += corr_dict["TE"]
         
     imgid = imgid + 1
 
     # append_text_anno(All_meshes, errors, imfile, imgid, infos, visib_thresh)
+    if num_inst > 0:
+        print(f"Image #{imgid-1}: Avg ADD: {add/num_inst}, Avg RE: {re/num_inst}, Avg TE: {te/num_inst}")
+    else:
+        print(f"Correlation item empty: {corr.item()[imfile]}")
     
-    # input(f"Image #{imgid-1}: Press Enter to continue...")
-    print(f"Image #{imgid-1}")
-    o3d.visualization.draw_geometries(All_meshes)
+    if num_inst > 0 and re/num_inst > 10:
+        o3d.visualization.draw_geometries(All_meshes)
     

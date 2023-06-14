@@ -12,8 +12,8 @@ if dataset == "tless":
 
 elif dataset == "doorlatch":
 	json_path = "./datasets/BOP_DATASETS/doorlatch/test/test_bboxes/"
-	# file_path = json_path + "yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json"
-	file_path = json_path + "combined_ind.json"
+	file_path = json_path + "yolox_x_640_doorlatch_real_pbr_doorlatch_bop_test.json"
+	# file_path = json_path + "combined_ind.json"
 	images_path = "./datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/"
 	scene = 0
 
