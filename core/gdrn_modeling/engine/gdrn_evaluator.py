@@ -7,13 +7,14 @@ import logging
 import os.path as osp
 import random
 import time
-from collections import OrderedDict
+import copy
 
 import cv2
 import mmcv
 import numpy as np
 import ref
 import torch
+from torchinfo import summary
 from torch.cuda.amp import autocast
 from transforms3d.quaternions import quat2mat
 
@@ -25,9 +26,10 @@ from detectron2.utils.logger import log_every_n_seconds, log_first_n
 from core.utils.my_comm import all_gather, get_world_size, is_main_process, synchronize
 from lib.pysixd import inout, misc
 from lib.pysixd.pose_error import te
-from lib.utils.mask_utils import binary_mask_to_rle
+from lib.utils.mask_utils import binary_mask_to_rle, mask_erode_cv2, mask_dilate_cv2
 from lib.utils.utils import dprint
 from lib.vis_utils.image import grid_show, vis_image_bboxes_cv2, vis_image_mask_cv2
+from core.utils.data_utils import crop_resize_by_warp_affine
 
 from .engine_utils import batch_data, get_out_coor, get_out_mask, batch_data_inference_roi
 from .test_utils import eval_cached_results, save_and_eval_results, to_list
@@ -665,6 +667,76 @@ class GDRN_Evaluator(DatasetEvaluator):
         }
         results.append(result)
         return results
+    
+
+def get_bg_image(filename, imH, imW):
+    _bg_img = cv2.imread(filename)
+    # randomly crop a region as background
+    bw = _bg_img.shape[1]
+    bh = _bg_img.shape[0]
+    x1 = np.random.randint(0, int(bw / 3))
+    y1 = np.random.randint(0, int(bh / 3))
+    x2 = np.random.randint(int(2 * bw / 3), bw)
+    y2 = np.random.randint(int(2 * bh / 3), bh)
+    bg_img = cv2.resize(_bg_img[y1:y2, x1:x2], (imW, imH), interpolation=cv2.INTER_LINEAR)
+
+    return bg_img
+
+
+def segment_out(inp, batch, cfg):
+    mask_prefix = "datasets/BOP_DATASETS/doorlatch/test/test_masks/000000/"
+    out = []
+    
+    for i, img in enumerate(inp):
+        dvc = img.device
+        img_name = batch['file_name'][i].split('/')[-1].split('.')[0]
+        inst_id = str(int(batch['inst_id'][i].item()))
+        mask_name = mask_prefix + img_name + "_" + inst_id + ".jpg"
+        mask = cv2.imread(mask_name)
+        mask = mask_erode_cv2(mask, kernel_size=5, kernel_type='square')
+        
+        bg_filename = "datasets/VOCdevkit/VOC2012/JPEGImages/2007_000039.jpg"
+        bg_im = get_bg_image(bg_filename, img.shape[1], img.shape[2])
+        bbox = batch['bbox_est'][i]
+        bbox_center = np.array([(bbox[0].item() + bbox[2].item())/2, (bbox[1].item() + bbox[3].item())/2])
+        mask_cropped = crop_resize_by_warp_affine(mask, bbox_center, batch['scale'][i].item(), \
+            cfg.MODEL.POSE_NET.INPUT_RES, interpolation=cv2.INTER_LINEAR)#.transpose(2, 0, 1)
+        mask_cropped = cv2.cvtColor(mask_cropped, cv2.COLOR_BGR2GRAY).astype(bool)
+
+        mask_bg = ~mask_cropped.copy()
+        img = np.array(torch.moveaxis(img.cpu(), 0, 2))
+        img[mask_bg] = bg_im[mask_bg]/255
+        
+        mask_bg = mask_bg.astype(np.uint8)*255
+        
+        # print(img.shape)
+        # cv2.imshow(f"{i}", mask_cropped)
+        # img_np = np.array(torch.moveaxis(img.cpu(), 0, 2))
+        # cv2.imshow('mask_bg', mask_bg)
+        # cv2.imshow('img', img)
+        # if cv2.waitKey(0) & 0xFF == ord('q'):
+        #     cv2.destroyAllWindows()
+        #     break
+        # cv2.destroyAllWindows()
+
+        # for i in range(mask_cropped.shape[0]):
+        #     for j in range(mask_cropped.shape[1]):
+        #         # If black pixel, turn white for contrast
+        #         if mask_cropped[i,j,0] == 0:
+        #             img[:,i,j] = 1.0
+        #         else:
+        #             print(mask_cropped[i,j,:])
+
+        # mask_cropped = torch.from_numpy(mask_cropped).float().to(img.device)
+        # mask_cropped /= 255
+        # mask_cropped = torch.moveaxis(mask_cropped, 2, 0)
+        # img = torch.mul(img, mask_cropped)
+        img_t = torch.tensor(copy.deepcopy(img), device=dvc)
+        img_t = torch.moveaxis(img_t, 2, 0)
+        out.append(img_t)
+    
+    out_tensor = torch.stack(out)
+    return out_tensor
 
 
 def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False):
@@ -734,6 +806,9 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
                 inp = torch.cat([batch["roi_img"], batch["roi_depth"]], dim=1)
             else:
                 inp = batch["roi_img"]
+            if cfg.VAL.USE_SEG:
+                inp = segment_out(inp, batch, cfg)
+            # breakpoint()
 
             with autocast(enabled=amp_test):  # gdrn amp_test seems slower
                 out_dict = model(
@@ -747,6 +822,23 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
                     roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
                     roi_extents=batch.get("roi_extent", None),
                 )
+            
+            args = dict(
+                roi_classes=batch["roi_cls"],
+                roi_cams=batch["roi_cam"],
+                roi_whs=batch["roi_wh"],
+                roi_centers=batch["roi_center"],
+                resize_ratios=batch["resize_ratio"],
+                roi_coord_2d=batch.get("roi_coord_2d", None),
+                roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
+                roi_extents=batch.get("roi_extent", None),
+            )
+
+            # sm = summary(model, (1,3,256,256), **args)
+            # with open("summary.txt", 'w') as f:
+            #     f.write(str(sm))
+            # breakpoint()
+
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             cur_compute_time = time.perf_counter() - start_compute_time

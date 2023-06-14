@@ -134,7 +134,7 @@ class DOORLATCH_PBR_Dataset:
 
             for str_im_id in tqdm(gt_dict, postfix=f"{scene_id}"):
                 int_im_id = int(str_im_id)
-                rgb_path = osp.join(scene_root, "rgb/{:06d}.jpg").format(int_im_id)
+                rgb_path = osp.join(scene_root, f"rgb/{int_im_id:06d}.{cfg['TRAIN']['IM_FORMAT']}")
                 assert osp.exists(rgb_path), rgb_path
 
                 depth_path = osp.join(scene_root, "depth/{:06d}.png".format(int_im_id))

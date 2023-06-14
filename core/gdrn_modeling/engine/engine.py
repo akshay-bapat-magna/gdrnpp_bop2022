@@ -2,6 +2,7 @@ import logging
 import os
 import os.path as osp
 import torch
+from torchinfo import summary
 
 # from torch.cuda.amp import autocast, GradScaler
 import mmcv
@@ -166,7 +167,7 @@ class GDRN_Lite(LightningLite):
 
     def do_train(self, cfg, args, model, optimizer, renderer=None, resume=False):
         model.train()
-
+        
         # some basic settings =========================
         dataset_meta = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
         data_ref = ref.__dict__[dataset_meta.ref_key]
@@ -216,7 +217,8 @@ class GDRN_Lite(LightningLite):
         bs_ref = cfg.SOLVER.get("REFERENCE_BS", 64)  # nominal batch size =========================
         accumulate_iter = max(round(bs_ref / cfg.SOLVER.IMS_PER_BATCH), 1)  # accumulate loss before optimizing
         # NOTE: update lr every accumulate_iter
-        scheduler = solver_utils.build_lr_scheduler(cfg, optimizer, total_iters=max_iter // accumulate_iter)
+        num_cycles = 1
+        scheduler = solver_utils.build_lr_scheduler(cfg, optimizer, total_iters=max_iter // accumulate_iter // num_cycles)
 
         # resume or load model ===================================
         extra_ckpt_dict = dict(
@@ -343,7 +345,10 @@ class GDRN_Lite(LightningLite):
                     if ema is not None:
                         ema.update(model)
                     storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
-                    scheduler.step()
+                    if cfg.SOLVER.LR_SCHEDULER_NAME == "ReduceOnPlateau":
+                        scheduler.step(losses)
+                    else:
+                        scheduler.step()
 
                 if (
                     cfg.TEST.EVAL_PERIOD > 0
@@ -404,6 +409,7 @@ class GDRN_Lite(LightningLite):
                     if hasattr(optimizer, "consolidate_state_dict"):  # for ddp_sharded
                         optimizer.consolidate_state_dict()
                 periodic_checkpointer.step(iteration, epoch=epoch)
+                
 
 
 def vis_train_data(data, obj_names, cfg):

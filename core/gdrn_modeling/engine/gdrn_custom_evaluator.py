@@ -9,7 +9,7 @@ import time
 import collections.abc
 from collections import OrderedDict
 import itertools
-
+import json
 import cv2
 import mmcv
 import numpy as np
@@ -23,6 +23,7 @@ from pytorch_lightning.lite import LightningLite
 import matplotlib.pyplot as plt
 import pickle
 from scipy.spatial.transform import Rotation as R
+from scipy.optimize import linear_sum_assignment as LSA
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 import ref
@@ -45,9 +46,15 @@ def draw_histogram(arr, name, vis=False):
     plt.hist(arr, bins=36)
     plt.title(f"{name} Errors")
     plt.yscale('log')
+
+    if name == 'trans':
+        plt.xlabel('mm')
+    elif name == 'rot':
+        plt.xlabel('deg')
     plt.savefig(f"error_hist_{name}.png")
     if vis:
         plt.show()
+    plt.clf()
 
 
 class GDRN_EvaluatorCustom(DatasetEvaluator):
@@ -611,12 +618,15 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                 quat = anno["quat"]
                 R = quat2mat(quat)
                 trans = anno["trans"]
+                visib = anno['visib_fract']
+                bbox_visib_area = (anno['bbox'][2]*anno['bbox'][3])/(anno['bbox_obj'][2]*anno['bbox_obj'][3])
+                visib = min(visib, bbox_visib_area)
                 obj_name = self._metadata.objs[anno["category_id"]]
                 if obj_name not in self.gts:
                     self.gts[obj_name] = OrderedDict()
                 if file_name not in self.gts[obj_name]:
                     self.gts[obj_name][file_name] = []
-                self.gts[obj_name][file_name].append({"R": R, "t": trans, "K": K})
+                self.gts[obj_name][file_name].append({"R": R, "t": trans, "K": K, "visib": visib})
 
     def reorganize_preds(self, _predictions):
         # re-organize list of dicts to pred_dict = preds[obj_name][file_name]
@@ -653,6 +663,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
 
         recalls = OrderedDict()
         errors = OrderedDict()
+        plot_z = []
         self.get_gts()
 
         error_names = ["ad", "re (deg)", "te (m)", "proj"]
@@ -670,6 +681,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         #     print(v)
         #     breakpoint()
 
+        visib_thresh = 0.6
         # Loop for each object
         for obj_name in self.gts:
             if obj_name not in self._predictions:
@@ -686,131 +698,497 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     errors[obj_name][err_name] = []
 
             #################
-            obj_gts = self.gts[obj_name]
+            obj_gts = self.gts[obj_name].copy()
+
+            # Quick fix to solve the issue where objects from previous images did not have a ground truth
+            # in the current image, leading to large errors when the predictions are actually decent.
+            PREV_LAYER_HACK = True
+            num_ims_per_scene = 10
+            count = 0
+            prevVal = None
+
+            if PREV_LAYER_HACK:
+                for key, value in obj_gts.items():
+                    if count > num_ims_per_scene-1:
+                        count = 0
+
+                    if count > 0:
+                        assert prevVal is not None
+                        obj_gts[key] = obj_gts[key].copy() + prevVal
+
+                    count += 1
+                    prevVal = obj_gts[key].copy()
+
             obj_preds = self._predictions[obj_name]
+            records = {}
+            corr = {}
 
-            # Loop for each image
-            for file_name, gt_anno in obj_gts.items():
-                if file_name not in obj_preds:  # no pred found
-                    for metric_name in metric_names:
-                        recalls[obj_name][metric_name].append(0.0)
-                    continue
+            '''
+            Functions defined here for different methods to calculate GT-Pred correspondences:
+            1. Brute force - GT outer loop
+            2. Brute force - Pred outer loop
+            3. Hungarian assignment
+            4. K-means clustering - best match
+            '''
+            #################################
+            # Brute force - GT outer loop
+            #################################
+            def brutefoce_gt():
 
-                # Loop for each GT
-                for i in range(len(gt_anno)):
-                    R_gt = gt_anno[i]["R"]
-                    t_gt = gt_anno[i]["t"]
-                    ad_min = np.inf
+                # Loop for each image
+                for file_name, gt_anno in tqdm(obj_gts.items()):
+                    records[file_name] = []
+                    corr[file_name] = []
 
-                    # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
-                        # print(f"\n\nGT #{i}\n{R_gt}\n{t_gt}\n")
+                    if file_name not in obj_preds:  # no pred found
+                        for metric_name in metric_names:
+                            recalls[obj_name][metric_name].append(0.0)
+                        continue
+
+                    # Loop for each GT
+                    for i in range(len(gt_anno)):
+
+                        # If object is not visible, skip GT
+                        if gt_anno[i]["visib"] < visib_thresh:
+                            continue
+
+                        temp_dict = {}
+                        R_gt = gt_anno[i]["R"]
+                        t_gt = gt_anno[i]["t"]
+                        temp_dict["R"] = R_gt
+                        temp_dict["t"] = t_gt
+                        ad_min = np.inf
+                        ad_error = np.inf
+                        z_gt = 0
+                        correspondence = None
+
+                        # Loop for each prediction
+                        for j in range(len(obj_preds[file_name])):
+                            # if obj_preds[file_name][j]['score'] < 0.8:
+                            #     continue
+                            R_pred = obj_preds[file_name][j]["R"]
+                            t_pred = obj_preds[file_name][j]["t"]
+
+                            if obj_name in cfg.DATASETS.SYM_OBJS:
+                                R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
+                                
+                                ad_error_temp = adi(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
+
+                                if ad_error_temp < ad_min:
+                                    ad_error = ad_error_temp
+                                    ad_min = ad_error_temp
+                                else:
+                                    continue
+
+                                r_error = re(R_pred, R_gt_sym)
+
+                                proj_2d_error = arp_2d(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt_sym,
+                                    t_gt,
+                                    pts=self.models_3d[cur_label]["pts"],
+                                    K=gt_anno[i]["K"],
+                                )
+
+                                t_error = te(t_pred, t_gt)
+
+                                
+                            else:
+                                ad_error_temp = add(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
+
+                                if ad_error_temp < ad_min:
+                                    ad_error = ad_error_temp
+                                    ad_min = ad_error_temp
+                                else:
+                                    continue
+                                
+                                r_error = re(R_pred, R_gt)
+                                
+
+                                proj_2d_error = arp_2d(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[cur_label]["pts"],
+                                    K=gt_anno[i]["K"],
+                                )
+                            
+                                t_error = te(t_pred, t_gt)
+
+                            z_gt = t_gt[2]
+                            correspondence = (i, j)
+                                
+                        assert ad_error == ad_min
+                        temp_dict["ADD"] = ad_error
+                        temp_dict["RE"] = r_error
+                        temp_dict["TE"] = t_error
+
+                        #########
+                        errors[obj_name]["ad"].append(ad_error)
+                        errors[obj_name]["re (deg)"].append(r_error)
+                        errors[obj_name]["te (m)"].append(t_error)
+                        errors[obj_name]["proj"].append(proj_2d_error)
+                        plot_z.append(z_gt)
+                        ############
+                        recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+
+                        # deg, cm
+                        recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
+                        recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
+                        recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+
+                        recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                        recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                        recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+
+                        recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
+                        recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
+                        recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
+                        # px
+                        recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                        recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                        recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+
+                        records[file_name].append(temp_dict)
+                        if correspondence is not None:
+                            corr[file_name].append({
+                                "GT_id": correspondence[0],
+                                "Pred_id": correspondence[1],
+                                "ADD": ad_error,
+                                "RE": r_error,
+                                "TE": t_error,
+                                "Conf": obj_preds[file_name][correspondence[1]]['score'],
+                                "R_gt": R_gt,
+                                "T_gt": t_gt,
+                                "R_pred": obj_preds[file_name][correspondence[1]]['R'],
+                                "t_pred": obj_preds[file_name][correspondence[1]]['t'],
+                                "R_unassigned": [obj_preds[file_name][idx]['R'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]],
+                                "t_unassigned": [obj_preds[file_name][idx]['t'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]]
+                            })
+            
+            #################################
+            # Brute force - Pred outer loop
+            #################################
+            def brutefoce_pred():
+
+                # Loop for each image
+                for file_name, gt_anno in tqdm(obj_gts.items()):
+                    records[file_name] = []
+                    corr[file_name] = []
+
+                    if file_name not in obj_preds:  # no pred found
+                        print(f"No pred found in {file_name}\n")
+                        for metric_name in metric_names:
+                            recalls[obj_name][metric_name].append(0.0)
+                        continue
 
                     # Loop for each prediction
                     for j in range(len(obj_preds[file_name])):
+                        # if obj_preds[file_name][j]['score'] < 0.8:
+                        #     continue
                         R_pred = obj_preds[file_name][j]["R"]
                         t_pred = obj_preds[file_name][j]["t"]
-                        # R_pred = gt_anno[i]["R"].copy()
-                        # t_pred = gt_anno[i]["t"].copy()
-                        # R_pred = np.matmul(R_pred, R.from_euler('z', 5, degrees=True).as_matrix())
 
-                        if obj_name in cfg.DATASETS.SYM_OBJS:
-                            R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
-                            
-                            ad_error_temp = adi(
-                                R_pred,
-                                t_pred,
-                                R_gt,
-                                t_gt,
-                                pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
-                            )
+                        # Loop for each GT
+                        for i in range(len(gt_anno)):
 
-                            if ad_error_temp < ad_min:
-                                ad_error = ad_error_temp
-                                ad_min = ad_error_temp
-                            else:
+                            # If object is not visible, skip GT
+                            if gt_anno[i]["visib"] < visib_thresh:
                                 continue
 
-                            r_error = re(R_pred, R_gt_sym)
+                            temp_dict = {}
+                            R_gt = gt_anno[i]["R"]
+                            t_gt = gt_anno[i]["t"]
+                            temp_dict["R"] = R_gt
+                            temp_dict["t"] = t_gt
+                            ad_min = np.inf
+                            ad_error = np.inf
+                            z_gt = 0
+                            correspondence = None
 
-                            proj_2d_error = arp_2d(
-                                R_pred,
-                                t_pred,
-                                R_gt_sym,
-                                t_gt,
-                                pts=self.models_3d[cur_label]["pts"],
-                                K=gt_anno[i]["K"],
-                            )
+                            if obj_name in cfg.DATASETS.SYM_OBJS:
+                                R_gt_sym = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
+                                
+                                ad_error_temp = adi(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
 
-                            t_error = te(t_pred, t_gt)
+                                if ad_error_temp < ad_min:
+                                    ad_error = ad_error_temp
+                                    ad_min = ad_error_temp
+                                else:
+                                    continue
 
-                            
-                        else:
-                            ad_error_temp = add(
-                                R_pred,
-                                t_pred,
-                                R_gt,
-                                t_gt,
-                                pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
-                            )
+                                r_error = re(R_pred, R_gt_sym)
 
-                            if ad_error_temp < ad_min:
-                                ad_error = ad_error_temp
-                                ad_min = ad_error_temp
+                                proj_2d_error = arp_2d(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt_sym,
+                                    t_gt,
+                                    pts=self.models_3d[cur_label]["pts"],
+                                    K=gt_anno[i]["K"],
+                                )
+
+                                t_error = te(t_pred, t_gt)
+
+                                
                             else:
-                                continue
-                            
-                            r_error = re(R_pred, R_gt)
-                            
+                                ad_error_temp = add(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
 
-                            proj_2d_error = arp_2d(
-                                R_pred,
-                                t_pred,
-                                R_gt,
-                                t_gt,
-                                pts=self.models_3d[cur_label]["pts"],
-                                K=gt_anno[i]["K"],
-                            )
+                                if ad_error_temp < ad_min:
+                                    ad_error = ad_error_temp
+                                    ad_min = ad_error_temp
+                                else:
+                                    continue
+                                
+                                r_error = re(R_pred, R_gt)
+                                
+
+                                proj_2d_error = arp_2d(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[cur_label]["pts"],
+                                    K=gt_anno[i]["K"],
+                                )
+                            
+                                t_error = te(t_pred, t_gt)
+
+                            z_gt = t_gt[2]
+                            correspondence = (i, j)
+                    
+                        assert ad_error == ad_min
+                        temp_dict["ADD"] = ad_error
+                        temp_dict["RE"] = r_error
+                        temp_dict["TE"] = t_error
+
+                        #########
+                        errors[obj_name]["ad"].append(ad_error)
+                        errors[obj_name]["re (deg)"].append(r_error)
+                        errors[obj_name]["te (m)"].append(t_error)
+                        errors[obj_name]["proj"].append(proj_2d_error)
+                        plot_z.append(z_gt)
+                        ############
+                        recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+
+                        # deg, cm
+                        recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
+                        recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
+                        recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+
+                        recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                        recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                        recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+
+                        recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
+                        recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
+                        recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
+                        # px
+                        recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                        recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                        recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+
+                        records[file_name].append(temp_dict)
+                        if correspondence is not None:
+                            corr[file_name].append({
+                                "GT_id": correspondence[0],
+                                "Pred_id": correspondence[1],
+                                "ADD": ad_error,
+                                "RE": r_error,
+                                "TE": t_error,
+                                "Conf": obj_preds[file_name][correspondence[1]]['score'],
+                                "R_gt": R_gt,
+                                "T_gt": t_gt,
+                                "R_pred": obj_preds[file_name][correspondence[1]]['R'],
+                                "t_pred": obj_preds[file_name][correspondence[1]]['t'],
+                                "R_unassigned": [obj_preds[file_name][idx]['R'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]],
+                                "t_unassigned": [obj_preds[file_name][idx]['t'] for idx in range(len(obj_preds[file_name])) if idx != correspondence[1]]
+                            })
+
+            #################################
+            # Hungarian Assignment
+            #################################
+            def hungarian():
+
+                # Loop for each image
+                for file_name, gt_anno in tqdm(obj_gts.items()):
+                    records[file_name] = []
+                    corr[file_name] = []
+
+                    if file_name not in obj_preds:  # no pred found
+                        for metric_name in metric_names:
+                            recalls[obj_name][metric_name].append(0.0)
+                        continue
+
+                    # Compute cost matrix
+                    cost_matrix = np.ones((len(gt_anno), len(obj_preds[file_name])))*np.inf
+
+                    # Loop for each prediction
+                    for j in range(len(obj_preds[file_name])):
+                        # if obj_preds[file_name][j]['score'] < 0.8:
+                        #     continue
+                        R_pred = obj_preds[file_name][j]["R"]
+                        t_pred = obj_preds[file_name][j]["t"]
+
+                        # Loop for each GT
+                        for i in range(len(gt_anno)):
+
+                            R_gt = gt_anno[i]["R"]
+                            t_gt = gt_anno[i]["t"]
+
+                            if obj_name in cfg.DATASETS.SYM_OBJS:                                
+                                ad_error = adi(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
+
+                            else:
+                                ad_error = add(
+                                    R_pred,
+                                    t_pred,
+                                    R_gt,
+                                    t_gt,
+                                    pts=self.models_3d[self.obj_names.index(obj_name)]["pts"],
+                                )
+
+                            cost_matrix[i, j] = ad_error
+
+                    # Ensure that num_rows <= num_cols for Hungarian Assignment
+                    if cost_matrix.shape[0] > cost_matrix.shape[1]:
+                        cost_matrix = cost_matrix.T
+                        cost_matrix_mode = "preds_lesser"
+                    else:
+                        cost_matrix_mode = "gts_lesser"
+                    
+
+                    # Assignment
+                    row_ind, col_ind = LSA(cost_matrix.copy())
+
+                    if cost_matrix_mode == "gts_lesser":
+                        gts_ind = row_ind
+                        preds_ind = col_ind
+                    else:
+                        gts_ind = col_ind
+                        preds_ind = row_ind
+                    
+                    # Compute remaining errors only for assignments
+                    for i, j in zip(gts_ind, preds_ind):
                         
-                            t_error = te(t_pred, t_gt)
+                        # If object is not visible, skip GT
+                        if gt_anno[i]["visib"] < visib_thresh:
+                            continue
 
-                            # if file_name == "datasets/BOP_DATASETS/doorlatch/test_pbr/000000/rgb/000157.png":
-                            #     print(f"\n\nPred #{j}\n{R_pred}\n{t_pred}\n\nAD: {ad_error}\nTE: {t_error}\nRE: {r_error}\n")
+                        R_gt = gt_anno[i]["R"]
+                        t_gt = gt_anno[i]["t"]
+                        if obj_name in cfg.DATASETS.SYM_OBJS:
+                            R_gt = get_closest_rot(R_pred, R_gt, self._metadata.sym_infos[cur_label])
+                        
+                        R_pred = obj_preds[file_name][j]["R"]
+                        t_pred = obj_preds[file_name][j]["t"]
 
-                            
-                    assert ad_error == ad_min
-                    # if r_error > 25:
-                    #     print(r_error)
-                    #     print(R_pred)
-                    #     print(R_gt)
-                    #     print(file_name)
-                    #     breakpoint()
-                    #########
-                    errors[obj_name]["ad"].append(ad_error)
-                    errors[obj_name]["re (deg)"].append(r_error)
-                    errors[obj_name]["te (m)"].append(t_error)
-                    errors[obj_name]["proj"].append(proj_2d_error)
-                    ############
-                    recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
-                    recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
-                    recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+                        r_error = re(R_pred, R_gt)
+                        
+                        proj_2d_error = arp_2d(
+                            R_pred,
+                            t_pred,
+                            R_gt,
+                            t_gt,
+                            pts=self.models_3d[cur_label]["pts"],
+                            K=gt_anno[i]["K"],
+                        )
+                    
+                        t_error = te(t_pred, t_gt)
 
-                    # deg, cm
-                    recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
-                    recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
-                    recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+                        if cost_matrix_mode == "gts_lesser":
+                            ad_error = cost_matrix[i, j]
+                        else:
+                            ad_error = cost_matrix[j, i]
+                        
+                        corr[file_name].append({
+                            "GT_id": i,
+                            "Pred_id": j,
+                            "ADD": ad_error,
+                            "RE": r_error,
+                            "TE": t_error,
+                            "Conf": obj_preds[file_name][j]['score'],
+                            "R_gt": R_gt,
+                            "T_gt": t_gt,
+                            "R_pred": obj_preds[file_name][j]['R'],
+                            "t_pred": obj_preds[file_name][j]['t'],
+                            "R_unassigned": [obj_preds[file_name][idx]['R'] for idx in range(len(obj_preds[file_name])) if idx != j],
+                            "t_unassigned": [obj_preds[file_name][idx]['t'] for idx in range(len(obj_preds[file_name])) if idx != j]
+                        })
 
-                    recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
-                    recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
-                    recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+                        #########
+                        errors[obj_name]["ad"].append(ad_error)
+                        errors[obj_name]["re (deg)"].append(r_error)
+                        errors[obj_name]["te (m)"].append(t_error)
+                        errors[obj_name]["proj"].append(proj_2d_error)
 
-                    recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
-                    recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
-                    recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
-                    # px
-                    recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
-                    recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
-                    recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+                        ############
+                        recalls[obj_name]["ad_2 (perc_obj_dia)"].append(float(ad_error < 0.02 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_5 (perc_obj_dia)"].append(float(ad_error < 0.05 * self.diameters[cur_label]))
+                        recalls[obj_name]["ad_10 (perc_obj_dia)"].append(float(ad_error < 0.1 * self.diameters[cur_label]))
+
+                        # deg, cm
+                        recalls[obj_name]["rete_2"].append(float(r_error < 2 and t_error < 0.02))
+                        recalls[obj_name]["rete_5"].append(float(r_error < 5 and t_error < 0.05))
+                        recalls[obj_name]["rete_10"].append(float(r_error < 10 and t_error < 0.1))
+
+                        recalls[obj_name]["re_2 (deg)"].append(float(r_error < 2))
+                        recalls[obj_name]["re_5 (deg)"].append(float(r_error < 5))
+                        recalls[obj_name]["re_10 (deg)"].append(float(r_error < 10))
+
+                        recalls[obj_name]["te_2 (perc_obj_dia)"].append(float(t_error < 0.02* self.diameters[cur_label]))
+                        recalls[obj_name]["te_5 (perc_obj_dia)"].append(float(t_error < 0.05* self.diameters[cur_label]))
+                        recalls[obj_name]["te_10 (perc_obj_dia)"].append(float(t_error < 0.1* self.diameters[cur_label]))
+                        # px
+                        recalls[obj_name]["proj_2 (px)"].append(float(proj_2d_error < 2))
+                        recalls[obj_name]["proj_5 (px)"].append(float(proj_2d_error < 5))
+                        recalls[obj_name]["proj_10 (px)"].append(float(proj_2d_error < 10))
+
+                return cost_matrix_mode
+
+
+            # Call appropriate correspondence computing function here
+            # brutefoce_pred()
+            mode = hungarian()
         
+        np.save("tracker.npy", corr)
+
         # Prevents matplotlib and PIL from spamming stdout with debug messages
         logging.getLogger('matplotlib.font_manager').disabled = True
         logging.getLogger('matplotlib.pyplot').disabled = True
@@ -818,8 +1196,11 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         logging.getLogger('matplotlib.ticker').disabled = True
 
         # summarize
-        draw_histogram(errors[obj_name]["te (m)"], "trans", True)
-        draw_histogram(errors[obj_name]["re (deg)"], "rot", True)
+        errors_mm = np.array(errors[obj_name]["te (m)"].copy())*1000
+        draw_histogram(errors_mm, "trans", False)
+        draw_histogram(errors[obj_name]["re (deg)"], "rot", False)
+        # plt.scatter(errors[obj_name]["ad"][:500], plot_z[:500], marker='.')
+        # plt.show()
         obj_names = sorted(list(recalls.keys()))
         header = ["objects"] + obj_names + [f"Avg({len(obj_names)})"]
         big_tab = [header]
@@ -940,7 +1321,10 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         savefile_png = osp.join(self._output_dir, 'recall_vs_thresh.png')
         # pickle.dump(fig, open(savefile_pickle, 'wb'))
         plt.savefig(savefile_png)
-        plt.show()
+        # plt.show()
+
+        with open("gts_and_errors.pkl", "wb") as fout:
+            pickle.dump(records, fout)
         
         return {}
 

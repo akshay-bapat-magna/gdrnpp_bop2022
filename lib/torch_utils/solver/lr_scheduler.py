@@ -265,6 +265,74 @@ def flat_and_anneal_lr_scheduler(
         return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
 
 
+def trapezoid_lr_scheduler(
+    optimizer,
+    total_iters,
+    warmup_iters=0,
+    warmup_factor=0.1,
+    warmup_method="linear",
+    warmup_pow=2,
+    rampup_time=0.4,
+    peak_time=0.1,
+    rampdown_time=0.4,
+    valley_time=0.1,
+    valley_lr_factor=0.01,
+    cyclic=False,
+    return_function=False,
+):
+    """Custom trapezoidal function.
+    After warmup, cycles between a factor of 1 and valley_lr_factor.
+    """
+    if warmup_method not in ("constant", "linear", "pow", "exp"):
+        raise ValueError(
+            "Only 'constant', 'linear', 'pow' or 'exp' warmup_method accepted," "got {}".format(warmup_method)
+        )
+    
+    if rampup_time + rampdown_time + peak_time + valley_time != 1:
+        raise ValueError(
+            f"LR scheduler fractions do not add up to 1: (RU, Peak, RD, Valley) = ({rampup_time}, {peak_time}, {rampdown_time}, {valley_time})"
+        )
+
+    def f(x):  # x is the iter in lr scheduler, return the lr_factor
+        # the final lr is warmup_factor * base_lr
+        
+        if x < warmup_iters:
+            if warmup_method == "linear":
+                alpha = float(x) / warmup_iters
+                return (1 - warmup_factor) * alpha + warmup_factor
+            elif warmup_method == "pow":
+                alpha = float(x) / warmup_iters
+                return (1 - warmup_factor) * pow(alpha, warmup_pow) + warmup_factor
+            elif warmup_method == "exp":
+                assert warmup_factor > 0, warmup_factor
+                alpha = float(x) / warmup_iters
+                return warmup_factor ** (1 - alpha)
+            elif warmup_method == "constant":
+                return warmup_factor
+        
+        else:
+            x = (x-warmup_iters) % total_iters if cyclic else x  # cyclic
+            x1 = total_iters*peak_time
+            x2 = total_iters*(peak_time+rampdown_time)
+            x3 = total_iters*(peak_time+rampdown_time+valley_time)
+            x4 = total_iters*(peak_time+rampdown_time+valley_time+rampup_time)
+
+            if x < x1:
+                return 1
+            elif x >= x1 and x < x2:
+                return valley_lr_factor + (x-x2)*(1-valley_lr_factor)/(x1-x2)
+            elif x >= x2 and x < x3:
+                return valley_lr_factor
+            elif x >= x3 and x < x4:
+                return 1 + (x-x4)*(valley_lr_factor-1)/(x3-x4)
+
+    if return_function:
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, f), f
+    else:
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
+
+
+
 def update_learning_rate(optimizer, cur_lr, new_lr):
     # old way of update learning rate
     """Update learning rate."""

@@ -351,6 +351,8 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         # some synthetic data already has bg, img_type should be real or something else but not syn
         img_type = dataset_dict.get("img_type", "real")
         do_replace_bg = False
+        if np.random.rand() < cfg.INPUT.CHANGE_BG_PROB:
+            do_replace_bg = True
         # if img_type == "syn":
         #     log_first_n(logging.WARNING, "replace bg", n=10)
         #     do_replace_bg = True
@@ -361,6 +363,10 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         if do_replace_bg:
             assert "segmentation" in dataset_dict["inst_infos"]
             mask = cocosegm2mask(dataset_dict["inst_infos"]["segmentation"], im_H_ori, im_W_ori)
+            # cv2.imshow('mask', mask)
+            # if cv2.waitKey(0) & 0xFF == ord('q'):
+            #     cv2.destroyAllWindows()
+            # cv2.destroyAllWindows()
             if self.with_depth and self.with_bg_depth:
                 image, bg_depth, mask_trunc = self.replace_bg(
                     image.copy(),
@@ -376,6 +382,13 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
                 )
         else:
             mask_trunc = None
+        
+        # cv2.imshow('mask', mask)
+        # cv2.imshow('img', image)
+        # if cv2.waitKey(0) & 0xFF == ord('q'):
+        #     cv2.destroyAllWindows()
+        #     breakpoint()
+        # cv2.destroyAllWindows()
 
         # NOTE: maybe add or change color augment here ===================================
         if self.color_aug_prob > 0 and self.color_augmentor is not None:
@@ -489,6 +502,16 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         ).transpose(2, 0, 1)
 
         roi_img = self.normalize_image(cfg, roi_img)
+
+        segmented_input = False
+        if segmented_input:
+            assert mask.shape == image.shape
+            # Check roi_mask variables, might have something useful
+            # roi_mask = crop_resize_by_warp_affine(
+        #     image, bbox_center, scale, input_res, interpolation=cv2.INTER_LINEAR
+        # ).transpose(2, 0, 1)
+            # if roi_mask[i,j] == 0 seg_img[i,j] = white else = roi_img[i,j]
+
         # print("\n\n\n\n\n\n", roi_img.shape)
         # img = copy.deepcopy(roi_img)
         # cv2.imshow('', img.transpose(1,2,0))
