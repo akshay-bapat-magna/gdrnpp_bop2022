@@ -26,7 +26,7 @@ from detectron2.utils.logger import log_every_n_seconds, log_first_n
 from core.utils.my_comm import all_gather, get_world_size, is_main_process, synchronize
 from lib.pysixd import inout, misc
 from lib.pysixd.pose_error import te
-from lib.utils.mask_utils import binary_mask_to_rle
+from lib.utils.mask_utils import binary_mask_to_rle, mask_erode_cv2, mask_dilate_cv2
 from lib.utils.utils import dprint
 from lib.vis_utils.image import grid_show, vis_image_bboxes_cv2, vis_image_mask_cv2
 from core.utils.data_utils import crop_resize_by_warp_affine
@@ -667,6 +667,20 @@ class GDRN_Evaluator(DatasetEvaluator):
         }
         results.append(result)
         return results
+    
+
+def get_bg_image(filename, imH, imW):
+    _bg_img = cv2.imread(filename)
+    # randomly crop a region as background
+    bw = _bg_img.shape[1]
+    bh = _bg_img.shape[0]
+    x1 = np.random.randint(0, int(bw / 3))
+    y1 = np.random.randint(0, int(bh / 3))
+    x2 = np.random.randint(int(2 * bw / 3), bw)
+    y2 = np.random.randint(int(2 * bh / 3), bh)
+    bg_img = cv2.resize(_bg_img[y1:y2, x1:x2], (imW, imH), interpolation=cv2.INTER_LINEAR)
+
+    return bg_img
 
 
 def segment_out(inp, batch, cfg):
@@ -674,19 +688,32 @@ def segment_out(inp, batch, cfg):
     out = []
     
     for i, img in enumerate(inp):
+        dvc = img.device
         img_name = batch['file_name'][i].split('/')[-1].split('.')[0]
         inst_id = str(int(batch['inst_id'][i].item()))
         mask_name = mask_prefix + img_name + "_" + inst_id + ".jpg"
         mask = cv2.imread(mask_name)
+        mask = mask_erode_cv2(mask, kernel_size=5, kernel_type='square')
+        
+        bg_filename = "datasets/VOCdevkit/VOC2012/JPEGImages/2007_000039.jpg"
+        bg_im = get_bg_image(bg_filename, img.shape[1], img.shape[2])
         bbox = batch['bbox_est'][i]
         bbox_center = np.array([(bbox[0].item() + bbox[2].item())/2, (bbox[1].item() + bbox[3].item())/2])
         mask_cropped = crop_resize_by_warp_affine(mask, bbox_center, batch['scale'][i].item(), \
             cfg.MODEL.POSE_NET.INPUT_RES, interpolation=cv2.INTER_LINEAR)#.transpose(2, 0, 1)
+        mask_cropped = cv2.cvtColor(mask_cropped, cv2.COLOR_BGR2GRAY).astype(bool)
+
+        mask_bg = ~mask_cropped.copy()
+        img = np.array(torch.moveaxis(img.cpu(), 0, 2))
+        img[mask_bg] = bg_im[mask_bg]/255
+        
+        mask_bg = mask_bg.astype(np.uint8)*255
         
         # print(img.shape)
         # cv2.imshow(f"{i}", mask_cropped)
         # img_np = np.array(torch.moveaxis(img.cpu(), 0, 2))
-        # cv2.imshow('', img_np)
+        # cv2.imshow('mask_bg', mask_bg)
+        # cv2.imshow('img', img)
         # if cv2.waitKey(0) & 0xFF == ord('q'):
         #     cv2.destroyAllWindows()
         #     break
@@ -700,11 +727,13 @@ def segment_out(inp, batch, cfg):
         #         else:
         #             print(mask_cropped[i,j,:])
 
-        mask_cropped = torch.from_numpy(mask_cropped).float().to(img.device)
-        mask_cropped /= 255
-        mask_cropped = torch.moveaxis(mask_cropped, 2, 0)
-        img = torch.mul(img, mask_cropped)
-        out.append(copy.deepcopy(img))
+        # mask_cropped = torch.from_numpy(mask_cropped).float().to(img.device)
+        # mask_cropped /= 255
+        # mask_cropped = torch.moveaxis(mask_cropped, 2, 0)
+        # img = torch.mul(img, mask_cropped)
+        img_t = torch.tensor(copy.deepcopy(img), device=dvc)
+        img_t = torch.moveaxis(img_t, 2, 0)
+        out.append(img_t)
     
     out_tensor = torch.stack(out)
     return out_tensor

@@ -46,9 +46,15 @@ def draw_histogram(arr, name, vis=False):
     plt.hist(arr, bins=36)
     plt.title(f"{name} Errors")
     plt.yscale('log')
+
+    if name == 'trans':
+        plt.xlabel('mm')
+    elif name == 'rot':
+        plt.xlabel('deg')
     plt.savefig(f"error_hist_{name}.png")
     if vis:
         plt.show()
+    plt.clf()
 
 
 class GDRN_EvaluatorCustom(DatasetEvaluator):
@@ -675,7 +681,7 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         #     print(v)
         #     breakpoint()
 
-        visib_thresh = 0.8
+        visib_thresh = 0.6
         # Loop for each object
         for obj_name in self.gts:
             if obj_name not in self._predictions:
@@ -692,9 +698,28 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
                     errors[obj_name][err_name] = []
 
             #################
-            obj_gts = self.gts[obj_name]
-            obj_preds = self._predictions[obj_name]
+            obj_gts = self.gts[obj_name].copy()
 
+            # Quick fix to solve the issue where objects from previous images did not have a ground truth
+            # in the current image, leading to large errors when the predictions are actually decent.
+            PREV_LAYER_HACK = True
+            num_ims_per_scene = 10
+            count = 0
+            prevVal = None
+
+            if PREV_LAYER_HACK:
+                for key, value in obj_gts.items():
+                    if count > num_ims_per_scene-1:
+                        count = 0
+
+                    if count > 0:
+                        assert prevVal is not None
+                        obj_gts[key] = obj_gts[key].copy() + prevVal
+
+                    count += 1
+                    prevVal = obj_gts[key].copy()
+
+            obj_preds = self._predictions[obj_name]
             records = {}
             corr = {}
 
@@ -1171,7 +1196,8 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         logging.getLogger('matplotlib.ticker').disabled = True
 
         # summarize
-        draw_histogram(errors[obj_name]["te (m)"], "trans", False)
+        errors_mm = np.array(errors[obj_name]["te (m)"].copy())*1000
+        draw_histogram(errors_mm, "trans", False)
         draw_histogram(errors[obj_name]["re (deg)"], "rot", False)
         # plt.scatter(errors[obj_name]["ad"][:500], plot_z[:500], marker='.')
         # plt.show()
