@@ -363,6 +363,10 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         if do_replace_bg:
             assert "segmentation" in dataset_dict["inst_infos"]
             mask = cocosegm2mask(dataset_dict["inst_infos"]["segmentation"], im_H_ori, im_W_ori)
+            # cv2.imshow('mask', mask)
+            # if cv2.waitKey(0) & 0xFF == ord('q'):
+            #     cv2.destroyAllWindows()
+            # cv2.destroyAllWindows()
             if self.with_depth and self.with_bg_depth:
                 image, bg_depth, mask_trunc = self.replace_bg(
                     image.copy(),
@@ -379,7 +383,7 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         else:
             mask_trunc = None
         
-        # cv2.imshow('mask', mask_trunc)
+        # cv2.imshow('mask', mask)
         # cv2.imshow('img', image)
         # if cv2.waitKey(0) & 0xFF == ord('q'):
         #     cv2.destroyAllWindows()
