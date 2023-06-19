@@ -684,8 +684,9 @@ class GDRN_EvaluatorCustom(DatasetEvaluator):
         visib_thresh = 0.6
         # Loop for each object
         for obj_name in self.gts:
-            if obj_name not in self._predictions:
-                continue
+            # Commented out because we are not currently working with parts of multiple classes
+            # if obj_name not in self._predictions:
+            #     continue
             cur_label = self.obj_names.index(obj_name)
             if obj_name not in recalls:
                 recalls[obj_name] = OrderedDict()
